@@ -7,6 +7,10 @@ packer {
   }
 }
 
+data "image-builder" "basic" {
+  name = "test-builder-does-not-exist"
+}
+
 source "null" "basic" {
   communicator = "none"
 }
@@ -14,10 +18,7 @@ source "null" "basic" {
 build {
   sources = ["source.null.basic"]
 
-  post-processor "appstream-share" {
-    image_name  = "test-image-does-not-exist"
-    account_ids = ["123456789012"]
-    region      = "us-east-1"
-    timeout     = "10s"
+  provisioner "shell-local" {
+    inline = ["echo Builder IP: ${data.image-builder.basic.ip_address}"]
   }
 }

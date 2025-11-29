@@ -52,3 +52,35 @@ build {
 -   `region` (string, optional): AWS Region. Defaults to environment or shared config.
 -   `destination_regions` (list of strings, optional): List of AWS Regions to copy the image to and share.
 -   `timeout` (string, optional): Timeout for waiting for the image. Default: `30m`.
+
+## Data Source: `image-builder`
+
+The `image-builder` data source allows you to fetch information about an existing AppStream Image Builder instance, such as its IP address.
+
+### Usage
+
+```hcl
+data "image-builder" "example" {
+  name = "my-image-builder"
+}
+
+build {
+  sources = ["..."]
+
+  provisioner "shell-local" {
+    inline = ["echo Builder IP: ${data.image-builder.example.ip_address}"]
+  }
+}
+```
+
+### Configuration
+
+-   `name` (string, required): The name of the AppStream Image Builder.
+-   `region` (string, optional): AWS Region.
+
+### Output Attributes
+
+-   `id` (string): The name of the Image Builder.
+-   `arn` (string): The ARN of the Image Builder.
+-   `state` (string): The current state of the Image Builder.
+-   `ip_address` (string): The private IP address of the Image Builder (from its ENI).

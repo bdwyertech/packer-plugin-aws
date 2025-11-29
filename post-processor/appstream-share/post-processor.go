@@ -29,7 +29,6 @@ type Config struct {
 
 	ImageName          string   `mapstructure:"image_name"`
 	AccountIDs         []string `mapstructure:"account_ids"`
-	Region             string   `mapstructure:"region"`
 	DestinationRegions []string `mapstructure:"destination_regions"`
 	Timeout            string   `mapstructure:"timeout"`
 
@@ -100,8 +99,8 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 	if err != nil {
 		return nil, false, false, fmt.Errorf("unable to load SDK config, %v", err)
 	}
-	if p.config.Region != "" {
-		cfg.Region = p.config.Region
+	if p.config.RawRegion != "" {
+		cfg.Region = p.config.RawRegion
 	}
 
 	svc := appstream.NewFromConfig(cfg)
