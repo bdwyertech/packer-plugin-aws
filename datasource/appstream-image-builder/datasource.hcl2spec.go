@@ -35,7 +35,7 @@ type FlatConfig struct {
 	Token                 *string                           `mapstructure:"token" required:"false" cty:"token" hcl:"token"`
 	VaultAWSEngine        *common.FlatVaultAWSEngineOptions `mapstructure:"vault_aws_engine" required:"false" cty:"vault_aws_engine" hcl:"vault_aws_engine"`
 	PollingConfig         *common.FlatAWSPollingConfig      `mapstructure:"aws_polling" required:"false" cty:"aws_polling" hcl:"aws_polling"`
-	Name                  *string                           `mapstructure:"name" cty:"name" hcl:"name"`
+	Name                  *string                           `mapstructure:"name" required:"true" cty:"name" hcl:"name"`
 }
 
 // FlatMapstructure returns a new FlatConfig.
@@ -75,6 +75,37 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"vault_aws_engine":              &hcldec.BlockSpec{TypeName: "vault_aws_engine", Nested: hcldec.ObjectSpec((*common.FlatVaultAWSEngineOptions)(nil).HCL2Spec())},
 		"aws_polling":                   &hcldec.BlockSpec{TypeName: "aws_polling", Nested: hcldec.ObjectSpec((*common.FlatAWSPollingConfig)(nil).HCL2Spec())},
 		"name":                          &hcldec.AttrSpec{Name: "name", Type: cty.String, Required: false},
+	}
+	return s
+}
+
+// FlatDatasourceOutput is an auto-generated flat version of DatasourceOutput.
+// Where the contents of a field with a `mapstructure:,squash` tag are bubbled up.
+type FlatDatasourceOutput struct {
+	ID        *string `mapstructure:"id" cty:"id" hcl:"id"`
+	ARN       *string `mapstructure:"arn" cty:"arn" hcl:"arn"`
+	State     *string `mapstructure:"state" cty:"state" hcl:"state"`
+	IPAddress *string `mapstructure:"ip_address" cty:"ip_address" hcl:"ip_address"`
+	Raw       *string `mapstructure:"raw" cty:"raw" hcl:"raw"`
+}
+
+// FlatMapstructure returns a new FlatDatasourceOutput.
+// FlatDatasourceOutput is an auto-generated flat version of DatasourceOutput.
+// Where the contents a fields with a `mapstructure:,squash` tag are bubbled up.
+func (*DatasourceOutput) FlatMapstructure() interface{ HCL2Spec() map[string]hcldec.Spec } {
+	return new(FlatDatasourceOutput)
+}
+
+// HCL2Spec returns the hcl spec of a DatasourceOutput.
+// This spec is used by HCL to read the fields of DatasourceOutput.
+// The decoded values from this spec will then be applied to a FlatDatasourceOutput.
+func (*FlatDatasourceOutput) HCL2Spec() map[string]hcldec.Spec {
+	s := map[string]hcldec.Spec{
+		"id":         &hcldec.AttrSpec{Name: "id", Type: cty.String, Required: false},
+		"arn":        &hcldec.AttrSpec{Name: "arn", Type: cty.String, Required: false},
+		"state":      &hcldec.AttrSpec{Name: "state", Type: cty.String, Required: false},
+		"ip_address": &hcldec.AttrSpec{Name: "ip_address", Type: cty.String, Required: false},
+		"raw":        &hcldec.AttrSpec{Name: "raw", Type: cty.String, Required: false},
 	}
 	return s
 }

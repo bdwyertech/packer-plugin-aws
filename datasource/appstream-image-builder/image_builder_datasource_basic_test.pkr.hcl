@@ -7,8 +7,8 @@ packer {
   }
 }
 
-data "image-builder" "basic" {
   name = "test-builder-does-not-exist"
+data "aws-appstream-image-builder" "basic" {
 }
 
 source "null" "basic" {
@@ -19,6 +19,6 @@ build {
   sources = ["source.null.basic"]
 
   provisioner "shell-local" {
-    inline = ["echo Builder IP: ${data.image-builder.basic.ip_address}"]
+    inline = ["echo Builder IP: ${data.aws-appstream-image-builder.basic.ip_address}"]
   }
 }
