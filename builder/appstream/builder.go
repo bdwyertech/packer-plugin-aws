@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer-plugin-sdk/common"
+	"github.com/hashicorp/packer-plugin-sdk/communicator"
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 	"github.com/hashicorp/packer-plugin-sdk/multistep/commonsteps"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
@@ -36,6 +37,9 @@ type Config struct {
 	types.DomainJoinInfo   `mapstructure:",squash"`
 	types.VpcConfig        `mapstructure:",squash"`
 	types.VolumeConfig     `mapstructure:",squash"`
+
+	// Communicator
+	Comm communicator.Config `mapstructure:",squash"`
 
 	// If true, Packer will not create the AppStream Image. Useful for setting to `true`
 	// during a build test stage. Default `false`.
@@ -111,6 +115,21 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	generatedData := &packerbuilderdata.GeneratedData{State: state}
 
 	steps := []multistep.Step{
+		&communicator.StepConnect{
+			// StepConnect is provided settings for WinRM and SSH, but
+			// the communicator will ultimately determine which port to use.
+			Config: &b.config.Comm,
+			// Host: awscommon.SSHHost(
+			// 	ec2conn,
+			// 	b.config.SSHInterface,
+			// 	b.config.Comm.Host(),
+			// ),
+			// SSHPort: awscommon.Port(
+			// 	b.config.SSHInterface,
+			// 	b.config.Comm.Port(),
+			// ),
+			SSHConfig: b.config.Comm.SSHConfigFunc(),
+		},
 		&awscommon.StepSetGeneratedData{
 			GeneratedData: generatedData,
 		},
@@ -139,8 +158,8 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 			OrganizationalUnitDistinguishedName: b.config.OrganizationalUnitDistinguishedName,
 		},
 		VpcConfig: &types.VpcConfig{
-			SecurityGroupIds: b.config.SecurityGroupIds,
-			SubnetIds:        b.config.SubnetIds,
+			//SecurityGroupIds: b.config.SecurityGroupIds,
+			SubnetIds: b.config.SubnetIds,
 		},
 	})
 	if err != nil {
