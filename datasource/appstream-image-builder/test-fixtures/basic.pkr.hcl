@@ -19,6 +19,10 @@ build {
   sources = ["source.null.basic"]
 
   provisioner "shell-local" {
-    inline = ["echo Builder IP: ${data.image-builder.basic.ip_address}"]
+    inline = ["echo Builder IP: ${data.aws-appstream-image-builder.basic.ip_address}"]
+  }
+
+  provisioner "shell-local" {
+    inline = ["echo Builder State: ${data.aws-appstream-image-builder.basic.raw}"]
   }
 }

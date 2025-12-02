@@ -12,8 +12,8 @@ import (
 
 func main() {
 	pps := plugin.NewSet()
-	pps.RegisterPostProcessor(plugin.DEFAULT_NAME, new(appstream.PostProcessor))
 	pps.RegisterDatasource("image-builder", new(imagebuilder.Datasource))
+	pps.RegisterPostProcessor("share", new(appstream.PostProcessor))
 	pps.SetVersion(version.PluginVersion)
 	err := pps.Run()
 	if err != nil {
