@@ -14,9 +14,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer-plugin-sdk/packer"
+	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
 	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
-	"github.com/zclconf/go-cty/cty"
 
 	"github.com/hashicorp/packer-plugin-sdk/common"
 
@@ -30,6 +30,8 @@ type Config struct {
 	ImageName          string   `mapstructure:"image_name"`
 	AccountIDs         []string `mapstructure:"account_ids"`
 	DestinationRegions []string `mapstructure:"destination_regions"`
+	AllowImageBuilder  bool     `mapstructure:"allow_image_builder"`
+	NoAllowFleet       bool     `mapstructure:"no_allow_fleet"`
 	Timeout            string   `mapstructure:"timeout"`
 
 	ctx interpolate.Context
@@ -40,36 +42,10 @@ type PostProcessor struct {
 }
 
 func (p *PostProcessor) ConfigSpec() hcldec.ObjectSpec {
-	return hcldec.ObjectSpec{
-		"image_name": &hcldec.AttrSpec{
-			Name:     "image_name",
-			Type:     cty.String,
-			Required: true,
-		},
-		"account_ids": &hcldec.AttrSpec{
-			Name:     "account_ids",
-			Type:     cty.List(cty.String),
-			Required: true,
-		},
-		"region": &hcldec.AttrSpec{
-			Name:     "region",
-			Type:     cty.String,
-			Required: false,
-		},
-		"destination_regions": &hcldec.AttrSpec{
-			Name:     "destination_regions",
-			Type:     cty.List(cty.String),
-			Required: false,
-		},
-		"timeout": &hcldec.AttrSpec{
-			Name:     "timeout",
-			Type:     cty.String,
-			Required: false,
-		},
-	}
+	return p.config.FlatMapstructure().HCL2Spec()
 }
 
-func (p *PostProcessor) Configure(raws ...interface{}) error {
+func (p *PostProcessor) Configure(raws ...any) error {
 	err := config.Decode(&p.config, &config.DecodeOpts{
 		PluginType:         "appstream-share",
 		Interpolate:        true,
@@ -78,15 +54,21 @@ func (p *PostProcessor) Configure(raws ...interface{}) error {
 			Exclude: []string{},
 		},
 	}, raws...)
+	var errs *packersdk.MultiError
+	errs = packersdk.MultiErrorAppend(errs, p.config.AccessConfig.Prepare(&p.config.PackerConfig)...)
 	if err != nil {
 		return err
 	}
 
 	if p.config.ImageName == "" {
-		return fmt.Errorf("image_name is required")
+		errs = packersdk.MultiErrorAppend(errs, fmt.Errorf("image_name is required"))
 	}
 	if len(p.config.AccountIDs) == 0 {
-		return fmt.Errorf("account_ids is required")
+		errs = packersdk.MultiErrorAppend(errs, fmt.Errorf("account_ids is required"))
+	}
+
+	if errs != nil && len(errs.Errors) > 0 {
+		return errs
 	}
 
 	return nil
@@ -179,8 +161,8 @@ func (p *PostProcessor) shareImage(ctx context.Context, svc *appstream.Client, i
 			Name:            &imageName,
 			SharedAccountId: &accountID,
 			ImagePermissions: &types.ImagePermissions{
-				AllowFleet:        aws.Bool(true),
-				AllowImageBuilder: aws.Bool(true),
+				AllowFleet:        aws.Bool(!p.config.NoAllowFleet),
+				AllowImageBuilder: aws.Bool(p.config.AllowImageBuilder),
 			},
 		})
 		if err != nil {

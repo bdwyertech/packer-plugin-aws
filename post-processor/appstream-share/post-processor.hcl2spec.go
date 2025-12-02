@@ -38,6 +38,8 @@ type FlatConfig struct {
 	ImageName             *string                           `mapstructure:"image_name" cty:"image_name" hcl:"image_name"`
 	AccountIDs            []string                          `mapstructure:"account_ids" cty:"account_ids" hcl:"account_ids"`
 	DestinationRegions    []string                          `mapstructure:"destination_regions" cty:"destination_regions" hcl:"destination_regions"`
+	AllowImageBuilder     *bool                             `mapstructure:"allow_image_builder" cty:"allow_image_builder" hcl:"allow_image_builder"`
+	NoAllowFleet          *bool                             `mapstructure:"no_allow_fleet" cty:"no_allow_fleet" hcl:"no_allow_fleet"`
 	Timeout               *string                           `mapstructure:"timeout" cty:"timeout" hcl:"timeout"`
 }
 
@@ -80,6 +82,8 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"image_name":                    &hcldec.AttrSpec{Name: "image_name", Type: cty.String, Required: false},
 		"account_ids":                   &hcldec.AttrSpec{Name: "account_ids", Type: cty.List(cty.String), Required: false},
 		"destination_regions":           &hcldec.AttrSpec{Name: "destination_regions", Type: cty.List(cty.String), Required: false},
+		"allow_image_builder":           &hcldec.AttrSpec{Name: "allow_image_builder", Type: cty.Bool, Required: false},
+		"no_allow_fleet":                &hcldec.AttrSpec{Name: "no_allow_fleet", Type: cty.Bool, Required: false},
 		"timeout":                       &hcldec.AttrSpec{Name: "timeout", Type: cty.String, Required: false},
 	}
 	return s
