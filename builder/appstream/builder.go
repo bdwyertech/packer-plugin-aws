@@ -5,6 +5,7 @@ package appstream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -120,11 +121,12 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	// Setup the state bag and initial state for the steps
 	state := new(multistep.BasicStateBag)
 	state.Put("config", &b.config)
+	state.Put("hook", hook)
+	state.Put("ui", ui)
 	state.Put("appstreamv2", svc)
 	state.Put("aws_config", cfg)
 	state.Put("region", b.config.RawRegion)
-	state.Put("ui", ui)
-	state.Put("hook", hook)
+
 	generatedData := &packerbuilderdata.GeneratedData{State: state}
 
 	steps := []multistep.Step{
@@ -152,6 +154,15 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 		return nil, rawErr.(error)
 	}
 
+	// If we were interrupted or cancelled, then just exit.
+	if _, ok := state.GetOk(multistep.StateCancelled); ok {
+		return nil, errors.New("build was cancelled")
+	}
+
+	if _, ok := state.GetOk(multistep.StateHalted); ok {
+		return nil, errors.New("build was halted")
+	}
+
 	// Build the artifact and return it
 	artifact := &Artifact{
 		Images:         state.Get("images").(map[string]string),
@@ -172,7 +183,7 @@ type Artifact struct {
 
 	// StateData should store data such as GeneratedData
 	// to be shared with post-processors
-	StateData map[string]interface{}
+	StateData map[string]any
 
 	// EC2 connection for performing API stuff.
 	Config aws.Config
