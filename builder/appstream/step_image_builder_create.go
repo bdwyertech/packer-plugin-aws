@@ -104,7 +104,7 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 		return multistep.ActionHalt
 	}
 
-	ui.Say(fmt.Sprintf("Instance has IP: %s.", state.Get("ip")))
+	ui.Say(fmt.Sprintf("ImageBuilder has IP: %s.", state.Get("ip")))
 
 	return multistep.ActionContinue
 }

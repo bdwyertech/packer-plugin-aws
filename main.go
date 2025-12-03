@@ -5,7 +5,8 @@ import (
 	"os"
 
 	builder "github.com/bdwyertech/packer-plugin-aws/builder/appstream"
-	datasource "github.com/bdwyertech/packer-plugin-aws/datasource/appstream-image-builder"
+	ds_image "github.com/bdwyertech/packer-plugin-aws/datasource/appstream-image"
+	ds_image_builder "github.com/bdwyertech/packer-plugin-aws/datasource/appstream-image-builder"
 	postprocessor "github.com/bdwyertech/packer-plugin-aws/post-processor/appstream-share"
 	"github.com/bdwyertech/packer-plugin-aws/version"
 	"github.com/hashicorp/packer-plugin-sdk/plugin"
@@ -13,7 +14,8 @@ import (
 
 func main() {
 	pps := plugin.NewSet()
-	pps.RegisterDatasource("appstream-image-builder", new(datasource.Datasource))
+	pps.RegisterDatasource("appstream-image", new(ds_image.Datasource))
+	pps.RegisterDatasource("appstream-image-builder", new(ds_image_builder.Datasource))
 	pps.RegisterBuilder("appstream-image-builder", new(builder.Builder))
 	pps.RegisterPostProcessor("appstream-share", new(postprocessor.PostProcessor))
 	pps.SetVersion(version.PluginVersion)

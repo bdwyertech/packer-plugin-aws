@@ -35,7 +35,7 @@ func (s *StepImageBuilderSnapshot) Run(ctx context.Context, state multistep.Stat
 		return multistep.ActionHalt
 	}
 
-	ui.Say("Launching an AppStream ImageBuilder...")
+	ui.Say("Capturing the AppStream Image...")
 
 	// Construct the command to create the image
 	cmdString := fmt.Sprintf("image-assistant.exe create-image --name %s", s.config.Name)
@@ -67,7 +67,8 @@ func (s *StepImageBuilderSnapshot) Run(ctx context.Context, state multistep.Stat
 	for {
 		images, err := svc.DescribeImages(ctx, &appstream.DescribeImagesInput{
 			Names: []string{s.config.Name},
-			Type:  types.VisibilityTypePrivate,
+			// Can't specify a name and a type -- its one or the other...
+			// Type:  types.VisibilityTypePrivate,
 		})
 
 		if err != nil {
@@ -91,10 +92,10 @@ func (s *StepImageBuilderSnapshot) Run(ctx context.Context, state multistep.Stat
 			})
 			return multistep.ActionContinue
 		case types.ImageStateFailed:
-			state.Put("error", fmt.Errorf("ImageBuilder failed"))
+			state.Put("error", fmt.Errorf("image failed"))
 			return multistep.ActionHalt
 		case types.ImageStatePending:
-			ui.Say(fmt.Sprintf("Waiting for ImageBuilder to become available (elapsed: %s)", elapsed))
+			ui.Say(fmt.Sprintf("Waiting for Image (%s) to become available (elapsed: %s)", s.config.Name, elapsed))
 			wait := 10 * time.Second
 			elapsed += wait
 			time.Sleep(wait)
