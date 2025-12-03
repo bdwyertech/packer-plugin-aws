@@ -1,0 +1,73 @@
+Type: `appstream-image-builder`
+
+The `appstream-image-builder` data source is used to fetch information about an existing AWS AppStream 2.0 Image Builder instance. This is useful for retrieving the IP address and other details of an Image Builder for use in your Packer build.
+
+## Configuration Reference
+
+**Required**
+
+- `name` (string) - The name of the AppStream Image Builder to query.
+
+**Optional**
+
+### AWS Configuration
+
+- `access_key` (string) - AWS access key. If not specified, Packer will use the standard AWS credential chain.
+
+- `secret_key` (string) - AWS secret key. If not specified, Packer will use the standard AWS credential chain.
+
+- `region` (string) - AWS region where the Image Builder exists.
+
+- `profile` (string) - AWS profile to use from your credentials file.
+
+## Output
+
+- `id` (string) - The name of the Image Builder.
+
+- `arn` (string) - The ARN of the Image Builder.
+
+- `state` (string) - The current state of the Image Builder (e.g., `RUNNING`, `STOPPED`, `STARTING`).
+
+- `ip_address` (string) - The private IP address of the Image Builder's ENI (Elastic Network Interface).
+
+- `raw` (string) - The raw JSON representation of the Image Builder object from the AWS API.
+
+## Example Usage
+
+```hcl
+packer {
+  required_plugins {
+    aws-appstream = {
+      version = ">= 0.0.1"
+      source  = "github.com/bdwyer/aws"
+    }
+  }
+}
+
+data "appstream-image-builder" "existing" {
+  name   = "my-existing-image-builder"
+  region = "us-east-1"
+}
+
+source "null" "example" {
+  communicator = "none"
+}
+
+build {
+  sources = ["source.null.example"]
+  
+  provisioner "shell-local" {
+    inline = [
+      "echo 'Image Builder ARN: ${data.appstream-image-builder.existing.arn}'",
+      "echo 'Image Builder State: ${data.appstream-image-builder.existing.state}'",
+      "echo 'Image Builder IP: ${data.appstream-image-builder.existing.ip_address}'"
+    ]
+  }
+}
+```
+
+## Notes
+
+- This data source queries the AWS AppStream API to retrieve information about an existing Image Builder.
+- The `ip_address` field will be empty if the Image Builder is not running or does not have a network interface attached.
+- The `raw` output contains the complete Image Builder object as JSON, which can be useful for debugging or accessing additional fields not exposed as dedicated outputs.

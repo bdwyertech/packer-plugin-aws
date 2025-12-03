@@ -1,86 +1,156 @@
-# Packer Plugin for AWS AppStream Sharing
+# Packer Plugin for AWS AppStream 2.0
 
-This plugin provides a Packer post-processor to share AWS AppStream images with other AWS accounts.
+This plugin provides a complete set of Packer components for working with AWS AppStream 2.0:
+- **Builder**: Create AppStream images using Image Builder instances
+- **Data Source**: Query existing Image Builder instances
+- **Post-Processor**: Share and copy AppStream images across accounts and regions
 
-## Features
+## Components
 
--   Waits for an AppStream image to become `AVAILABLE`.
--   Shares the image with a list of AWS Account IDs.
--   Configurable timeout.
+### Builder: `appstream-image-builder`
+
+Creates AWS AppStream 2.0 images by launching an Image Builder instance, provisioning it with your software and configurations, and then creating an image from it.
+
+[Full Builder Documentation](docs/builders/appstream-image-builder.mdx)
+
+### Data Source: `appstream-image-builder`
+
+Fetches information about an existing AppStream Image Builder instance, including its IP address, ARN, and state.
+
+[Full Data Source Documentation](docs/datasources/appstream-image-builder.mdx)
+
+### Post-Processor: `appstream-share`
+
+Shares AppStream images with other AWS accounts and optionally copies them to additional regions.
+
+[Full Post-Processor Documentation](docs/post-processors/appstream-share.mdx)
 
 ## Installation
 
-1.  **Build the plugin:**
-    ```bash
-    go build .
-    ```
+### Using `packer init` (Recommended)
 
-2.  **Install:**
-    Move the binary `packer-plugin-aws-appstream` to your Packer plugins directory (e.g., `~/.packer.d/plugins/`).
-
-## Usage
-
-Add the post-processor to your `packer.pkr.hcl`:
+Add the plugin to your Packer template:
 
 ```hcl
 packer {
   required_plugins {
-    appstream-share = {
+    aws-appstream = {
       version = ">= 0.0.1"
-      source  = "github.com/bdwyer/packer-plugin-aws"
+      source  = "github.com/bdwyer/aws"
+    }
+  }
+}
+```
+
+Then run:
+```bash
+packer init .
+```
+
+### Manual Installation
+
+1. **Build the plugin:**
+   ```bash
+   go build -o packer-plugin-aws-appstream .
+   ```
+
+2. **Install:**
+   ```bash
+   mkdir -p ~/.packer.d/plugins
+   mv packer-plugin-aws-appstream ~/.packer.d/plugins/
+   ```
+
+## Quick Start Example
+
+Here's a complete example that demonstrates all three components:
+
+```hcl
+packer {
+  required_plugins {
+    aws-appstream = {
+      version = ">= 0.0.1"
+      source  = "github.com/bdwyer/aws"
     }
   }
 }
 
-build {
-  sources = ["..."]
+# Query an existing Image Builder (optional)
+data "appstream-image-builder" "existing" {
+  name   = "my-existing-builder"
+  region = "us-east-1"
+}
 
+# Build a new AppStream image
+source "appstream-image-builder" "windows" {
+  name                = "my-custom-appstream-image"
+  builder_name        = "my-image-builder"
+  source_image_name   = "AppStream-WinServer2019-12-05-2024"
+  instance_type       = "stream.standard.medium"
+  region              = "us-east-1"
+  
+  subnet_ids          = ["subnet-12345678"]
+  security_group_ids  = ["sg-12345678"]
+  
+  tags = {
+    Environment = "Production"
+    Team        = "DevOps"
+  }
+  
+  communicator        = "winrm"
+  winrm_username      = "Administrator"
+  winrm_use_ssl       = true
+  winrm_insecure      = true
+}
+
+build {
+  sources = ["source.appstream-image-builder.windows"]
+  
+  # Provision the image
+  provisioner "powershell" {
+    inline = [
+      "Write-Host 'Installing custom software...'",
+      "# Add your software installation commands here"
+    ]
+  }
+  
+  # Share the image with other accounts and regions
   post-processor "appstream-share" {
-    image_name          = "my-appstream-image"
+    image_name          = "my-custom-appstream-image"
     account_ids         = ["123456789012", "987654321098"]
     region              = "us-east-1"
     destination_regions = ["us-west-2", "eu-central-1"]
     timeout             = "45m"
+    allow_image_builder = true
   }
 }
 ```
 
-## Configuration
+## Requirements
 
--   `image_name` (string, required): The name of the AppStream image to share.
--   `account_ids` (list of strings, required): List of AWS Account IDs to share with.
--   `region` (string, optional): AWS Region. Defaults to environment or shared config.
--   `destination_regions` (list of strings, optional): List of AWS Regions to copy the image to and share.
--   `timeout` (string, optional): Timeout for waiting for the image. Default: `30m`.
+- Packer >= 1.7.0
+- AWS credentials configured (via environment variables, shared credentials file, or IAM role)
+- Appropriate AWS IAM permissions for AppStream 2.0 operations
 
-## Data Source: `image-builder`
+## Development
 
-The `image-builder` data source allows you to fetch information about an existing AppStream Image Builder instance, such as its IP address.
+### Building from Source
 
-### Usage
-
-```hcl
-data "image-builder" "example" {
-  name = "my-image-builder"
-}
-
-build {
-  sources = ["..."]
-
-  provisioner "shell-local" {
-    inline = ["echo Builder IP: ${data.image-builder.example.ip_address}"]
-  }
-}
+```bash
+git clone https://github.com/bdwyer/packer-plugin-aws-appstream.git
+cd packer-plugin-aws-appstream
+go build .
 ```
 
-### Configuration
+### Running Tests
 
--   `name` (string, required): The name of the AppStream Image Builder.
--   `region` (string, optional): AWS Region.
+```bash
+go test ./...
+```
 
-### Output Attributes
+## License
 
--   `id` (string): The name of the Image Builder.
--   `arn` (string): The ARN of the Image Builder.
--   `state` (string): The current state of the Image Builder.
--   `ip_address` (string): The private IP address of the Image Builder (from its ENI).
+See LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.

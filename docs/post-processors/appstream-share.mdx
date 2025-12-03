@@ -1,0 +1,100 @@
+Type: `appstream-share`
+
+The `appstream-share` post-processor is used to share AWS AppStream 2.0 images with other AWS accounts and optionally copy them to other regions.
+
+## Configuration Reference
+
+**Required**
+
+- `image_name` (string) - The name of the AppStream image to share.
+
+- `account_ids` ([]string) - List of AWS Account IDs to share the image with.
+
+**Optional**
+
+### AWS Configuration
+
+- `access_key` (string) - AWS access key. If not specified, Packer will use the standard AWS credential chain.
+
+- `secret_key` (string) - AWS secret key. If not specified, Packer will use the standard AWS credential chain.
+
+- `region` (string) - AWS region where the source image exists.
+
+- `profile` (string) - AWS profile to use from your credentials file.
+
+### Sharing Configuration
+
+- `destination_regions` ([]string) - List of AWS regions to copy the image to. The image will be shared with the specified accounts in each destination region.
+
+- `allow_image_builder` (bool) - Allow the shared accounts to use the image for Image Builders. Defaults to `false`.
+
+- `no_allow_fleet` (bool) - Do not allow the shared accounts to use the image for fleets. Defaults to `false` (meaning fleets are allowed by default).
+
+- `timeout` (string) - Maximum time to wait for the image to become available before sharing. Accepts duration strings like `30m`, `1h`, etc. Defaults to `30m`.
+
+## Example Usage
+
+### Basic Sharing
+
+```hcl
+packer {
+  required_plugins {
+    aws-appstream = {
+      version = ">= 0.0.1"
+      source  = "github.com/bdwyer/aws"
+    }
+  }
+}
+
+source "appstream-image-builder" "windows" {
+  name              = "my-custom-image"
+  builder_name      = "my-image-builder"
+  source_image_name = "AppStream-WinServer2019-12-05-2024"
+  instance_type     = "stream.standard.medium"
+  region            = "us-east-1"
+}
+
+build {
+  sources = ["source.appstream-image-builder.windows"]
+  
+  post-processor "appstream-share" {
+    image_name  = "my-custom-image"
+    account_ids = ["123456789012", "987654321098"]
+    region      = "us-east-1"
+  }
+}
+```
+
+### Multi-Region Sharing
+
+```hcl
+build {
+  sources = ["source.appstream-image-builder.windows"]
+  
+  post-processor "appstream-share" {
+    image_name          = "my-custom-image"
+    account_ids         = ["123456789012", "987654321098"]
+    region              = "us-east-1"
+    destination_regions = ["us-west-2", "eu-central-1"]
+    timeout             = "45m"
+    allow_image_builder = true
+  }
+}
+```
+
+## How It Works
+
+1. **Wait for Image**: The post-processor first waits for the specified image to become `AVAILABLE` in the source region.
+
+2. **Share in Source Region**: Once available, it shares the image with the specified AWS accounts in the source region.
+
+3. **Copy to Destination Regions**: If `destination_regions` is specified, the image is copied to each destination region.
+
+4. **Wait and Share in Destination Regions**: For each destination region, the post-processor waits for the copied image to become `AVAILABLE` and then shares it with the specified accounts.
+
+## Notes
+
+- The post-processor will fail if the image does not become available within the specified timeout.
+- By default, shared images allow fleet usage but not Image Builder usage. Use `allow_image_builder` and `no_allow_fleet` to customize permissions.
+- Image copying between regions can take significant time depending on the image size.
+- The post-processor keeps the artifact unchanged, so it can be chained with other post-processors.

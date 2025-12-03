@@ -1,0 +1,124 @@
+Type: `appstream-image-builder`
+
+The `appstream-image-builder` builder is used to create AWS AppStream 2.0 images by launching an Image Builder instance, provisioning it, and then creating an image from it.
+
+## Configuration Reference
+
+**Required**
+
+- `name` (string) - Name of the resulting AppStream image.
+
+- `builder_name` (string) - Name of the AppStream Image Builder instance that will be created.
+
+- `source_image_name` (string) - Name of the source AppStream image to use as the base.
+
+- `instance_type` (string) - Instance type to use for the Image Builder (e.g., `stream.standard.medium`).
+
+**Optional**
+
+### AWS Configuration
+
+- `access_key` (string) - AWS access key. If not specified, Packer will use the standard AWS credential chain.
+
+- `secret_key` (string) - AWS secret key. If not specified, Packer will use the standard AWS credential chain.
+
+- `region` (string) - AWS region where the Image Builder will be created.
+
+- `profile` (string) - AWS profile to use from your credentials file.
+
+### Image Builder Configuration
+
+- `description` (string) - Description for the resulting AppStream image.
+
+- `display_name` (string) - Display name for the resulting AppStream image.
+
+- `iam_role_arn` (string) - ARN of the IAM role to use for the Image Builder. If not specified, AppStream will use the default role.
+
+- `appstream_agent_version` (string) - Version of the AppStream agent to use. Defaults to `LATEST`.
+
+- `enable_default_internet_access` (bool) - Enable default internet access for the Image Builder. Defaults to `false`.
+
+- `skip_create_image` (bool) - If true, Packer will not create the AppStream image. Useful for testing. Defaults to `false`.
+
+### Network Configuration
+
+- `security_group_ids` ([]string) - List of security group IDs to attach to the Image Builder.
+
+- `subnet_ids` ([]string) - List of subnet IDs where the Image Builder can be launched.
+
+### Domain Join Configuration
+
+- `directory_name` (string) - Name of the directory to join the Image Builder to.
+
+- `organizational_unit_distinguished_name` (string) - Distinguished name of the organizational unit for domain joining.
+
+### Storage Configuration
+
+- `volume_size_in_gb` (int32) - Size of the EBS volume in GB.
+
+### Software Configuration
+
+- `softwares_to_install` ([]string) - List of software packages to install on the Image Builder.
+
+- `softwares_to_uninstall` ([]string) - List of software packages to uninstall from the Image Builder.
+
+### Tags
+
+- `tags` (map[string]string) - Tags to apply to the resulting AppStream image.
+
+- `builder_tags` (map[string]string) - Tags to apply to the Image Builder instance.
+
+### Communicator Configuration
+
+This builder supports SSH and WinRM communicators. See the [communicator documentation](https://www.packer.io/docs/communicators) for configuration options.
+
+## Example Usage
+
+```hcl
+packer {
+  required_plugins {
+    aws-appstream = {
+      version = ">= 0.0.1"
+      source  = "github.com/bdwyer/aws"
+    }
+  }
+}
+
+source "appstream-image-builder" "windows" {
+  name                = "my-custom-image"
+  builder_name        = "my-image-builder"
+  source_image_name   = "AppStream-WinServer2019-12-05-2024"
+  instance_type       = "stream.standard.medium"
+  region              = "us-east-1"
+  
+  subnet_ids          = ["subnet-12345678"]
+  security_group_ids  = ["sg-12345678"]
+  
+  tags = {
+    Environment = "Production"
+    Team        = "DevOps"
+  }
+  
+  communicator        = "winrm"
+  winrm_username      = "Administrator"
+  winrm_use_ssl       = true
+  winrm_insecure      = true
+}
+
+build {
+  sources = ["source.appstream-image-builder.windows"]
+  
+  provisioner "powershell" {
+    inline = [
+      "Write-Host 'Installing custom software...'",
+      "# Add your provisioning steps here"
+    ]
+  }
+}
+```
+
+## Notes
+
+- The builder will automatically wait for the Image Builder to be in a `RUNNING` state before attempting to connect.
+- After provisioning, the builder will create an AppStream image from the Image Builder.
+- The Image Builder instance will be automatically deleted after the image is created.
