@@ -5,16 +5,13 @@ package appstream
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
-	"github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer-plugin-sdk/common"
 	"github.com/hashicorp/packer-plugin-sdk/communicator"
@@ -34,9 +31,17 @@ const BuilderId = "bdwyertech.amazonappstream"
 type Config struct {
 	common.PackerConfig    `mapstructure:",squash"`
 	awscommon.AccessConfig `mapstructure:",squash"`
-	types.DomainJoinInfo   `mapstructure:",squash"`
-	types.VpcConfig        `mapstructure:",squash"`
-	types.VolumeConfig     `mapstructure:",squash"`
+
+	// Domain Join Configuration
+	DirectoryName                       *string `mapstructure:"directory_name" required:"false"`
+	OrganizationalUnitDistinguishedName *string `mapstructure:"organizational_unit_distinguished_name" required:"false"`
+
+	// VPC Configuration
+	SecurityGroupIds []string `mapstructure:"security_group_ids" required:"false"`
+	SubnetIds        []string `mapstructure:"subnet_ids" required:"false"`
+
+	// Volume Configuration
+	VolumeSizeInGb *int32 `mapstructure:"volume_size_in_gb" required:"false"`
 
 	// Communicator
 	Comm communicator.Config `mapstructure:",squash"`
@@ -73,6 +78,8 @@ type Builder struct {
 	runner multistep.Runner
 }
 
+var _ packersdk.Builder = new(Builder)
+
 func (b *Builder) ConfigSpec() hcldec.ObjectSpec { return b.config.FlatMapstructure().HCL2Spec() }
 
 func (b *Builder) Prepare(raws ...any) ([]string, []string, error) {
@@ -92,7 +99,11 @@ func (b *Builder) Prepare(raws ...any) ([]string, []string, error) {
 	var warns []string
 	errs = packersdk.MultiErrorAppend(errs, b.config.AccessConfig.Prepare(&b.config.PackerConfig)...)
 
-	return nil, warns, errs
+	if errs != nil && len(errs.Errors) != 0 {
+		return nil, warns, errs
+	}
+
+	return nil, warns, nil
 }
 
 func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook) (packersdk.Artifact, error) {
@@ -112,22 +123,19 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	state.Put("appstreamv2", svc)
 	state.Put("aws_config", cfg)
 	state.Put("region", b.config.RawRegion)
+	state.Put("ui", ui)
+	state.Put("hook", hook)
 	generatedData := &packerbuilderdata.GeneratedData{State: state}
 
 	steps := []multistep.Step{
+		&StepImageBuilderCreate{
+			Config: b.config,
+		},
 		&communicator.StepConnect{
 			// StepConnect is provided settings for WinRM and SSH, but
 			// the communicator will ultimately determine which port to use.
-			Config: &b.config.Comm,
-			// Host: awscommon.SSHHost(
-			// 	ec2conn,
-			// 	b.config.SSHInterface,
-			// 	b.config.Comm.Host(),
-			// ),
-			// SSHPort: awscommon.Port(
-			// 	b.config.SSHInterface,
-			// 	b.config.Comm.Port(),
-			// ),
+			Config:    &b.config.Comm,
+			Host:      communicator.CommHost(b.config.Comm.Host(), "ip"),
 			SSHConfig: b.config.Comm.SSHConfigFunc(),
 		},
 		&awscommon.StepSetGeneratedData{
@@ -137,75 +145,18 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	}
 
 	// Run!
-	b.runner = commonsteps.NewRunner(steps, b.config.PackerConfig, ui)
+	b.runner = commonsteps.NewRunnerWithPauseFn(steps, b.config.PackerConfig, ui, state)
 	b.runner.Run(ctx, state)
 	// If there was an error, return that
 	if rawErr, ok := state.GetOk("error"); ok {
 		return nil, rawErr.(error)
 	}
 
-	out, err := svc.CreateImageBuilder(ctx, &appstream.CreateImageBuilderInput{
-		Name:                        &b.config.Name,
-		Description:                 &b.config.Description,
-		DisplayName:                 &b.config.DisplayName,
-		InstanceType:                &b.config.InstanceType,
-		IamRoleArn:                  &b.config.IamRoleArn,
-		ImageName:                   &b.config.SourceImageName,
-		EnableDefaultInternetAccess: &b.config.EnableDefaultInternetAccess,
-		AppstreamAgentVersion:       &b.config.AppstreamAgentVersion,
-		DomainJoinInfo: &types.DomainJoinInfo{
-			DirectoryName:                       b.config.DirectoryName,
-			OrganizationalUnitDistinguishedName: b.config.OrganizationalUnitDistinguishedName,
-		},
-		VpcConfig: &types.VpcConfig{
-			//SecurityGroupIds: b.config.SecurityGroupIds,
-			SubnetIds: b.config.SubnetIds,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	builder := out.ImageBuilder
-
-	// Wait for image to become available
-	for {
-		status, err := svc.DescribeImageBuilders(ctx, &appstream.DescribeImageBuildersInput{
-			Names: []string{b.config.Name},
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		if len(status.ImageBuilders) == 0 {
-			return nil, fmt.Errorf("image builder not found")
-		}
-
-		imageBuilder := status.ImageBuilders[0]
-
-		switch imageBuilder.State {
-		case types.ImageBuilderStateRunning:
-			builder = &imageBuilder
-		case types.ImageBuilderStatePending:
-			time.Sleep(5 * time.Second)
-			ui.Say("Waiting for ImageBuilder to become available")
-			continue
-		default:
-			return nil, fmt.Errorf("bad imagebuilder state: %s", imageBuilder.State)
-		}
-		break
-	}
-	if builder.NetworkAccessConfiguration != nil && builder.NetworkAccessConfiguration.EniPrivateIpAddress != nil {
-		generatedData.Put("eni_private_ip_address", builder.NetworkAccessConfiguration.EniPrivateIpAddress)
-	} else {
-		return nil, errors.New("failed to fetch address for imageBuilder")
-	}
-
 	// Build the artifact and return it
 	artifact := &Artifact{
-		// Amis:           state.Get("images").(map[string]string),
+		Images:         state.Get("images").(map[string]string),
 		BuilderIdValue: BuilderId,
-		StateData:      map[string]interface{}{"generated_data": state.Get("generated_data")},
+		StateData:      map[string]any{"generated_data": state.Get("generated_data")},
 		Config:         cfg,
 	}
 

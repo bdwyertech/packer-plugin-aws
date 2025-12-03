@@ -27,7 +27,7 @@ packer {
   required_plugins {
     appstream-share = {
       version = ">= 0.0.1"
-      source  = "github.com/bdwyer/packer-plugin-aws-appstream"
+      source  = "github.com/bdwyer/packer-plugin-aws"
     }
   }
 }

@@ -35,11 +35,11 @@ type FlatConfig struct {
 	Token                               *string                           `mapstructure:"token" required:"false" cty:"token" hcl:"token"`
 	VaultAWSEngine                      *common.FlatVaultAWSEngineOptions `mapstructure:"vault_aws_engine" required:"false" cty:"vault_aws_engine" hcl:"vault_aws_engine"`
 	PollingConfig                       *common.FlatAWSPollingConfig      `mapstructure:"aws_polling" required:"false" cty:"aws_polling" hcl:"aws_polling"`
-	DirectoryName                       *string                           `cty:"directory_name" hcl:"directory_name"`
-	OrganizationalUnitDistinguishedName *string                           `cty:"organizational_unit_distinguished_name" hcl:"organizational_unit_distinguished_name"`
-	SecurityGroupIds                    []string                          `cty:"security_group_ids" hcl:"security_group_ids"`
-	SubnetIds                           []string                          `cty:"subnet_ids" hcl:"subnet_ids"`
-	VolumeSizeInGb                      *int32                            `cty:"volume_size_in_gb" hcl:"volume_size_in_gb"`
+	DirectoryName                       *string                           `mapstructure:"directory_name" required:"false" cty:"directory_name" hcl:"directory_name"`
+	OrganizationalUnitDistinguishedName *string                           `mapstructure:"organizational_unit_distinguished_name" required:"false" cty:"organizational_unit_distinguished_name" hcl:"organizational_unit_distinguished_name"`
+	SecurityGroupIds                    []string                          `mapstructure:"security_group_ids" required:"false" cty:"security_group_ids" hcl:"security_group_ids"`
+	SubnetIds                           []string                          `mapstructure:"subnet_ids" required:"false" cty:"subnet_ids" hcl:"subnet_ids"`
+	VolumeSizeInGb                      *int32                            `mapstructure:"volume_size_in_gb" required:"false" cty:"volume_size_in_gb" hcl:"volume_size_in_gb"`
 	Type                                *string                           `mapstructure:"communicator" cty:"communicator" hcl:"communicator"`
 	PauseBeforeConnect                  *string                           `mapstructure:"pause_before_connecting" cty:"pause_before_connecting" hcl:"pause_before_connecting"`
 	SSHHost                             *string                           `mapstructure:"ssh_host" cty:"ssh_host" hcl:"ssh_host"`

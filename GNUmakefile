@@ -1,4 +1,4 @@
-NAME=aws-appstream
+NAME=aws
 BINARY=packer-plugin-${NAME}
 
 COUNT?=1
