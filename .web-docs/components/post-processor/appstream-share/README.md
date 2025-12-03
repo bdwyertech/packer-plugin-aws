@@ -1,6 +1,3 @@
-Type: `appstream-share`
-
-The `appstream-share` post-processor is used to share AWS AppStream 2.0 images with other AWS accounts and optionally copy them to other regions.
 
 ## Configuration Reference
 

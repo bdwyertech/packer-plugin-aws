@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	builder "github.com/bdwyer/packer-plugin-aws/builder/appstream"
-	datasource "github.com/bdwyer/packer-plugin-aws/datasource/appstream-image-builder"
-	postprocessor "github.com/bdwyer/packer-plugin-aws/post-processor/appstream-share"
-	"github.com/bdwyer/packer-plugin-aws/version"
+	builder "github.com/bdwyertech/packer-plugin-aws/builder/appstream"
+	datasource "github.com/bdwyertech/packer-plugin-aws/datasource/appstream-image-builder"
+	postprocessor "github.com/bdwyertech/packer-plugin-aws/post-processor/appstream-share"
+	"github.com/bdwyertech/packer-plugin-aws/version"
 	"github.com/hashicorp/packer-plugin-sdk/plugin"
 )
 

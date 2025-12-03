@@ -2,13 +2,14 @@ packer {
   required_plugins {
     appstream-share = {
       version = ">= 0.0.1"
-      source  = "github.com/bdwyer/aws-appstream"
+      source  = "github.com/bdwyertech/aws-appstream"
     }
   }
 }
 
-data "image-builder" "basic" {
-  name = "test-builder-does-not-exist"
+data "aws-appstream-image-builder" "basic" {
+  // name = "test-builder-does-not-exist"
+  name = "packer-appstream-11-12-25"
 }
 
 source "null" "basic" {

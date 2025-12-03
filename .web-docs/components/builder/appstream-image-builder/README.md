@@ -1,6 +1,3 @@
-Type: `appstream-image-builder`
-
-The `appstream-image-builder` builder is used to create AWS AppStream 2.0 images by launching an Image Builder instance, provisioning it, and then creating an image from it.
 
 ## Configuration Reference
 

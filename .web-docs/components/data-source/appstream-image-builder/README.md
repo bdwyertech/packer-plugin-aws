@@ -1,6 +1,3 @@
-Type: `appstream-image-builder`
-
-The `appstream-image-builder` data source is used to fetch information about an existing AWS AppStream 2.0 Image Builder instance. This is useful for retrieving the IP address and other details of an Image Builder for use in your Packer build.
 
 ## Configuration Reference
 

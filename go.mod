@@ -1,4 +1,4 @@
-module github.com/bdwyer/packer-plugin-aws
+module github.com/bdwyertech/packer-plugin-aws
 
 go 1.25.4
 

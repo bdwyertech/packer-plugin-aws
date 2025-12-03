@@ -159,6 +159,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 		// 	GeneratedData: generatedData,
 		// },
 		&commonsteps.StepProvision{},
+		&StepImageBuilderSnapshot{b.config},
 	}
 
 	// Run!

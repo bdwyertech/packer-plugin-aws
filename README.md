@@ -36,7 +36,7 @@ packer {
   required_plugins {
     aws-appstream = {
       version = ">= 0.0.1"
-      source  = "github.com/bdwyer/aws"
+      source  = "github.com/bdwyertech/aws"
     }
   }
 }
@@ -69,7 +69,7 @@ packer {
   required_plugins {
     aws-appstream = {
       version = ">= 0.0.1"
-      source  = "github.com/bdwyer/aws"
+      source  = "github.com/bdwyertech/aws"
     }
   }
 }
@@ -136,7 +136,7 @@ build {
 ### Building from Source
 
 ```bash
-git clone https://github.com/bdwyer/packer-plugin-aws-appstream.git
+git clone https://github.com/bdwyertech/packer-plugin-aws.git
 cd packer-plugin-aws-appstream
 go build .
 ```
