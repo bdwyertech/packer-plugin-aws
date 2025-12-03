@@ -91,6 +91,7 @@ type FlatConfig struct {
 	WinRMUseNTLM                        *bool                             `mapstructure:"winrm_use_ntlm" cty:"winrm_use_ntlm" hcl:"winrm_use_ntlm"`
 	SkipCreateImage                     *bool                             `mapstructure:"skip_create_image" required:"false" cty:"skip_create_image" hcl:"skip_create_image"`
 	Name                                *string                           `mapstructure:"name" required:"true" cty:"name" hcl:"name"`
+	BuilderName                         *string                           `mapstructure:"builder_name" required:"true" cty:"builder_name" hcl:"builder_name"`
 	Description                         *string                           `mapstructure:"description" required:"false" cty:"description" hcl:"description"`
 	DisplayName                         *string                           `mapstructure:"display_name" required:"false" cty:"display_name" hcl:"display_name"`
 	EnableDefaultInternetAccess         *bool                             `mapstructure:"enable_default_internet_access" required:"false" cty:"enable_default_internet_access" hcl:"enable_default_internet_access"`
@@ -101,6 +102,7 @@ type FlatConfig struct {
 	SoftwaresToInstall                  []string                          `mapstructure:"softwares_to_install" required:"false" cty:"softwares_to_install" hcl:"softwares_to_install"`
 	SoftwaresToUninstall                []string                          `mapstructure:"softwares_to_uninstall" required:"false" cty:"softwares_to_uninstall" hcl:"softwares_to_uninstall"`
 	Tags                                map[string]string                 `mapstructure:"tags" required:"false" cty:"tags" hcl:"tags"`
+	BuilderTags                         map[string]string                 `mapstructure:"builder_tags" required:"false" cty:"builder_tags" hcl:"builder_tags"`
 }
 
 // FlatMapstructure returns a new FlatConfig.
@@ -195,6 +197,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"winrm_use_ntlm":                         &hcldec.AttrSpec{Name: "winrm_use_ntlm", Type: cty.Bool, Required: false},
 		"skip_create_image":                      &hcldec.AttrSpec{Name: "skip_create_image", Type: cty.Bool, Required: false},
 		"name":                                   &hcldec.AttrSpec{Name: "name", Type: cty.String, Required: false},
+		"builder_name":                           &hcldec.AttrSpec{Name: "builder_name", Type: cty.String, Required: false},
 		"description":                            &hcldec.AttrSpec{Name: "description", Type: cty.String, Required: false},
 		"display_name":                           &hcldec.AttrSpec{Name: "display_name", Type: cty.String, Required: false},
 		"enable_default_internet_access":         &hcldec.AttrSpec{Name: "enable_default_internet_access", Type: cty.Bool, Required: false},
@@ -205,6 +208,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"softwares_to_install":                   &hcldec.AttrSpec{Name: "softwares_to_install", Type: cty.List(cty.String), Required: false},
 		"softwares_to_uninstall":                 &hcldec.AttrSpec{Name: "softwares_to_uninstall", Type: cty.List(cty.String), Required: false},
 		"tags":                                   &hcldec.AttrSpec{Name: "tags", Type: cty.Map(cty.String), Required: false},
+		"builder_tags":                           &hcldec.AttrSpec{Name: "builder_tags", Type: cty.Map(cty.String), Required: false},
 	}
 	return s
 }

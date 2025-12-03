@@ -17,6 +17,8 @@ type StepImageBuilderCreate struct {
 	name   string
 }
 
+var _ multistep.Step = new(StepImageBuilderCreate)
+
 func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	svc, ok := state.Get("appstreamv2").(*appstream.Client)
 	if !ok {
@@ -32,7 +34,7 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 	ui.Say("Launching an AppStream ImageBuilder...")
 
 	out, err := svc.CreateImageBuilder(ctx, &appstream.CreateImageBuilderInput{
-		Name:                        &s.config.Name,
+		Name:                        &s.config.BuilderName,
 		Description:                 &s.config.Description,
 		DisplayName:                 &s.config.DisplayName,
 		InstanceType:                &s.config.InstanceType,
@@ -48,7 +50,7 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 			SecurityGroupIds: s.config.SecurityGroupIds,
 			SubnetIds:        s.config.SubnetIds,
 		},
-		Tags:                 s.config.Tags,
+		Tags:                 s.config.BuilderTags,
 		SoftwaresToInstall:   s.config.SoftwaresToInstall,
 		SoftwaresToUninstall: s.config.SoftwaresToUninstall,
 	})

@@ -50,7 +50,10 @@ type Config struct {
 	// during a build test stage. Default `false`.
 	SkipCreateImage bool `mapstructure:"skip_create_image" required:"false"`
 
-	Name                        string `mapstructure:"name" required:"true"`
+	// Name of the resulting image
+	Name string `mapstructure:"name" required:"true"`
+	// Name of the AppStream Image Builder
+	BuilderName                 string `mapstructure:"builder_name" required:"true"`
 	Description                 string `mapstructure:"description" required:"false"`
 	DisplayName                 string `mapstructure:"display_name" required:"false"`
 	EnableDefaultInternetAccess bool   `mapstructure:"enable_default_internet_access" required:"false"`
@@ -68,7 +71,11 @@ type Config struct {
 
 	// AccessEndpoints []types.AccessEndpoint `mapstructure:"access_endpoints" required:"false"`
 
+	// Tags for the resulting image
 	Tags map[string]string `mapstructure:"tags" required:"false"`
+
+	// Tags to apply to the ImageBuilder
+	BuilderTags map[string]string `mapstructure:"builder_tags" required:"false"`
 
 	ctx interpolate.Context
 }
