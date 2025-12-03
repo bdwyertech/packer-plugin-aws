@@ -131,7 +131,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 
 	steps := []multistep.Step{
 		&StepImageBuilderCreate{
-			Config: b.config,
+			config: b.config,
 		},
 		&communicator.StepConnect{
 			// StepConnect is provided settings for WinRM and SSH, but
@@ -143,7 +143,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 		&awscommon.StepSetGeneratedData{
 			GeneratedData: generatedData,
 		},
-		&commonsteps.StepProvision{},
+		// &commonsteps.StepProvision{},
 	}
 
 	// Run!

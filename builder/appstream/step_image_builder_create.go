@@ -13,7 +13,7 @@ import (
 )
 
 type StepImageBuilderCreate struct {
-	Config Config
+	config Config
 	name   string
 }
 
@@ -32,21 +32,21 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 	ui.Say("Launching an AppStream ImageBuilder...")
 
 	out, err := svc.CreateImageBuilder(ctx, &appstream.CreateImageBuilderInput{
-		Name:                        &s.Config.Name,
-		Description:                 &s.Config.Description,
-		DisplayName:                 &s.Config.DisplayName,
-		InstanceType:                &s.Config.InstanceType,
-		IamRoleArn:                  &s.Config.IamRoleArn,
-		ImageName:                   &s.Config.SourceImageName,
-		EnableDefaultInternetAccess: &s.Config.EnableDefaultInternetAccess,
-		AppstreamAgentVersion:       &s.Config.AppstreamAgentVersion,
+		Name:                        &s.config.Name,
+		Description:                 &s.config.Description,
+		DisplayName:                 &s.config.DisplayName,
+		InstanceType:                &s.config.InstanceType,
+		IamRoleArn:                  &s.config.IamRoleArn,
+		ImageName:                   &s.config.SourceImageName,
+		EnableDefaultInternetAccess: &s.config.EnableDefaultInternetAccess,
+		AppstreamAgentVersion:       &s.config.AppstreamAgentVersion,
 		DomainJoinInfo: &types.DomainJoinInfo{
-			DirectoryName:                       s.Config.DirectoryName,
-			OrganizationalUnitDistinguishedName: s.Config.OrganizationalUnitDistinguishedName,
+			DirectoryName:                       s.config.DirectoryName,
+			OrganizationalUnitDistinguishedName: s.config.OrganizationalUnitDistinguishedName,
 		},
 		VpcConfig: &types.VpcConfig{
 			//SecurityGroupIds: b.config.SecurityGroupIds,
-			SubnetIds: s.Config.SubnetIds,
+			SubnetIds: s.config.SubnetIds,
 		},
 	})
 	if err != nil {
