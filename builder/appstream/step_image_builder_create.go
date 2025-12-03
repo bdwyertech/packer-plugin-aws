@@ -45,8 +45,8 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 			OrganizationalUnitDistinguishedName: s.config.OrganizationalUnitDistinguishedName,
 		},
 		VpcConfig: &types.VpcConfig{
-			//SecurityGroupIds: b.config.SecurityGroupIds,
-			SubnetIds: s.config.SubnetIds,
+			SecurityGroupIds: s.config.SecurityGroupIds,
+			SubnetIds:        s.config.SubnetIds,
 		},
 	})
 	if err != nil {
