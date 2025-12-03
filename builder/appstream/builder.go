@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 	"github.com/hashicorp/packer-plugin-sdk/multistep/commonsteps"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
-	"github.com/hashicorp/packer-plugin-sdk/packerbuilderdata"
 	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
 
@@ -96,9 +95,14 @@ func (b *Builder) Prepare(raws ...any) ([]string, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+
 	var errs *packersdk.MultiError
 	var warns []string
 	errs = packersdk.MultiErrorAppend(errs, b.config.AccessConfig.Prepare(&b.config.PackerConfig)...)
+
+	if b.config.AppstreamAgentVersion == "" {
+		b.config.AppstreamAgentVersion = "LATEST"
+	}
 
 	if es := b.config.Comm.Prepare(&b.config.ctx); len(es) > 0 {
 		errs = packersdk.MultiErrorAppend(errs, es...)
@@ -131,7 +135,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	state.Put("aws_config", cfg)
 	state.Put("region", b.config.RawRegion)
 
-	generatedData := &packerbuilderdata.GeneratedData{State: state}
+	// generatedData := &packerbuilderdata.GeneratedData{State: state}
 
 	steps := []multistep.Step{
 		&StepImageBuilderCreate{
@@ -144,10 +148,10 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 			Host:      communicator.CommHost(b.config.Comm.Host(), "ip"),
 			SSHConfig: b.config.Comm.SSHConfigFunc(),
 		},
-		&awscommon.StepSetGeneratedData{
-			GeneratedData: generatedData,
-		},
-		// &commonsteps.StepProvision{},
+		// &awscommon.StepSetGeneratedData{
+		// 	GeneratedData: generatedData,
+		// },
+		&commonsteps.StepProvision{},
 	}
 
 	// Run!

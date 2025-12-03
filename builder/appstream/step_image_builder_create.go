@@ -48,6 +48,9 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 			SecurityGroupIds: s.config.SecurityGroupIds,
 			SubnetIds:        s.config.SubnetIds,
 		},
+		Tags:                 s.config.Tags,
+		SoftwaresToInstall:   s.config.SoftwaresToInstall,
+		SoftwaresToUninstall: s.config.SoftwaresToUninstall,
 	})
 	if err != nil {
 		state.Put("error", err)
@@ -93,11 +96,13 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 	}
 	state.Put("image_builder", builder)
 	if builder.NetworkAccessConfiguration != nil && builder.NetworkAccessConfiguration.EniPrivateIpAddress != nil {
-		state.Put("ip", builder.NetworkAccessConfiguration.EniPrivateIpAddress)
+		state.Put("ip", *builder.NetworkAccessConfiguration.EniPrivateIpAddress)
 	} else {
 		state.Put("error", errors.New("failed to fetch address for imageBuilder"))
 		return multistep.ActionHalt
 	}
+
+	ui.Say(fmt.Sprintf("Instance has IP: %s.", state.Get("ip")))
 
 	return multistep.ActionContinue
 }
@@ -108,7 +113,7 @@ func (s *StepImageBuilderCreate) Cleanup(state multistep.StateBag) {
 	ctx := context.TODO()
 
 	if s.name == "" {
-		// Already deleted -- nothing to do
+		// Never created -- nothing to do
 		return
 	}
 
