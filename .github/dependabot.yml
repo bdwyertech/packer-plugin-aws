@@ -5,9 +5,16 @@
 
 version: 2
 updates:
-  - package-ecosystem: "gomod" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: 'gomod' # See documentation for possible values
+    directory: '/' # Location of package manifests
     schedule:
-      interval: "daily"
-    allow:
-      - dependency-name: "github.com/hashicorp/packer-plugin-sdk"
+      interval: 'monthly'
+      time: '08:00'
+      timezone: America/New_York
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: '08:00'
+      timezone: America/New_York

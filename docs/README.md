@@ -31,6 +31,7 @@ $ packer plugins install github.com/bdwyertech/aws
 
 #### Data Sources
 
+- [appstream-image](datasources/appstream-image.mdx) - Fetches information about existing AppStream 2.0 images. Supports exact name matching or regex patterns, with the ability to find the latest matching image.
 - [appstream-image-builder](datasources/appstream-image-builder.mdx) - Fetches information about an existing AppStream Image Builder instance, including its IP address, ARN, and state.
 - [security-group](datasources/security-group.mdx) - Fetches information about an AWS Security Group using various criteria like security group ID, name, VPC ID, tags, or custom filters.
 - [subnet](datasources/subnet.mdx) - Fetches information about an AWS VPC subnet using various criteria. When multiple subnets match, you can select the one with the most free IPs or a random one.
