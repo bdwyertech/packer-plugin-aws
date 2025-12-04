@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"time"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
 	"github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/hashicorp/hcl/v2/hcldec"
@@ -79,15 +78,12 @@ func (d *Datasource) Configure(raws ...any) error {
 
 func (d *Datasource) Execute() (cty.Value, error) {
 	ctx := context.TODO()
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	cfg, err := d.config.AccessConfig.GetAWSConfig(ctx)
 	if err != nil {
-		return cty.NullVal(cty.EmptyObject), fmt.Errorf("unable to load SDK config, %v", err)
-	}
-	if d.config.RawRegion != "" {
-		cfg.Region = d.config.RawRegion
+		return cty.NullVal(cty.EmptyObject), err
 	}
 
-	svc := appstream.NewFromConfig(cfg)
+	svc := appstream.NewFromConfig(*cfg)
 
 	// If latest is set, get the latest image
 	if d.config.NameRegex != "" {

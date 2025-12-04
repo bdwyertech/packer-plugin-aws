@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
 	"github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/hashicorp/hcl/v2/hcldec"
@@ -77,15 +76,12 @@ func (p *PostProcessor) Configure(raws ...any) error {
 func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
 	ui.Say("Sharing AppStream image...")
 
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	cfg, err := p.config.AccessConfig.GetAWSConfig(ctx)
 	if err != nil {
-		return nil, false, false, fmt.Errorf("unable to load SDK config, %v", err)
-	}
-	if p.config.RawRegion != "" {
-		cfg.Region = p.config.RawRegion
+		return nil, false, false, err
 	}
 
-	svc := appstream.NewFromConfig(cfg)
+	svc := appstream.NewFromConfig(*cfg)
 
 	// Parse timeout
 	timeout := 30 * time.Minute

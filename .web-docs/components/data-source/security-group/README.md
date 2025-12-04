@@ -1,0 +1,255 @@
+Type: `security-group`
+
+The `security-group` data source is used to fetch information about an AWS Security Group. This data source provides a flexible way to query security groups using various criteria like security group ID, name, VPC ID, tags, or custom filters. The interface is compatible with Terraform's `aws_security_group` data source.
+
+## Configuration Reference
+
+**Optional (at least one required)**
+
+### Direct Lookup Parameters
+
+- `id` (string) - ID of the specific security group to retrieve.
+
+- `name` (string) - Name that the desired security group must have.
+
+- `vpc_id` (string) - ID of the VPC that the desired security group belongs to.
+
+- `tags` (map[string]string) - Map of tags, each pair of which must exactly match a pair on the desired security group.
+
+### Filter Block
+
+- `filter` (block) - One or more custom filters for complex queries. Each filter block supports:
+  - `name` (string, required) - Name of the field to filter by, as defined by the AWS EC2 API.
+  - `values` (list of strings, required) - Set of values that are accepted for the given field. A security group will be selected if any one of the given values matches.
+
+### AWS Configuration
+
+- `access_key` (string) - AWS access key. If not specified, Packer will use the standard AWS credential chain.
+
+- `secret_key` (string) - AWS secret key. If not specified, Packer will use the standard AWS credential chain.
+
+- `region` (string) - AWS region where the security group exists.
+
+- `profile` (string) - AWS profile to use from your credentials file.
+
+## Output Attributes
+
+- `id` (string) - ID of the security group.
+
+- `arn` (string) - ARN of the security group.
+
+- `name` (string) - Name of the security group.
+
+- `description` (string) - Description of the security group.
+
+- `vpc_id` (string) - ID of the VPC the security group belongs to.
+
+- `owner_id` (string) - ID of the AWS account that owns the security group.
+
+- `tags` (map[string]string) - Tags assigned to the security group.
+
+- `raw` (string) - Raw JSON response from AWS API.
+
+## Example Usage
+
+### Query by Security Group ID
+
+```hcl
+data "aws-security-group" "by_id" {
+  id     = "sg-12345678"
+  region = "us-east-1"
+}
+```
+
+### Query by Name
+
+```hcl
+data "aws-security-group" "by_name" {
+  name   = "web-server-sg"
+  region = "us-east-1"
+}
+```
+
+### Query by VPC ID and Name
+
+```hcl
+data "aws-security-group" "web_sg" {
+  vpc_id = "vpc-12345678"
+  name   = "web-server-sg"
+  region = "us-east-1"
+}
+```
+
+### Query by Tags
+
+```hcl
+data "aws-security-group" "app_sg" {
+  vpc_id = "vpc-12345678"
+  tags = {
+    Name        = "app-security-group"
+    Environment = "production"
+    Team        = "platform"
+  }
+  region = "us-east-1"
+}
+```
+
+### Query Using Custom Filters
+
+```hcl
+data "aws-security-group" "filtered" {
+  region = "us-east-1"
+  
+  filter {
+    name   = "vpc-id"
+    values = ["vpc-12345678"]
+  }
+  
+  filter {
+    name   = "group-name"
+    values = ["web-server-sg", "app-server-sg"]
+  }
+  
+  filter {
+    name   = "tag:Environment"
+    values = ["production"]
+  }
+}
+```
+
+### Query Default Security Group
+
+```hcl
+data "aws-security-group" "default" {
+  vpc_id = "vpc-12345678"
+  name   = "default"
+  region = "us-east-1"
+}
+```
+
+### Using Security Group Data in a Build
+
+```hcl
+packer {
+  required_plugins {
+    aws = {
+      version = ">= 0.0.1"
+      source  = "github.com/bdwyertech/aws"
+    }
+  }
+}
+
+# Query security group for the build
+data "aws-security-group" "build_sg" {
+  tags = {
+    Name = "packer-build-sg"
+  }
+  region = "us-east-1"
+}
+
+# Query subnet for the build
+data "aws-subnet" "build_subnet" {
+  tags = {
+    Name = "packer-build-subnet"
+  }
+  region = "us-east-1"
+}
+
+source "amazon-ebs" "example" {
+  ami_name      = "packer-example-{{timestamp}}"
+  instance_type = "t2.micro"
+  region        = "us-east-1"
+  source_ami_filter {
+    filters = {
+      name                = "ubuntu/images/*ubuntu-jammy-22.04-amd64-server-*"
+      root-device-type    = "ebs"
+      virtualization-type = "hvm"
+    }
+    most_recent = true
+    owners      = ["099720109477"]
+  }
+  ssh_username = "ubuntu"
+  
+  # Use the subnet and security group from the data sources
+  subnet_id          = data.aws-subnet.build_subnet.id
+  security_group_ids = [data.aws-security-group.build_sg.id]
+}
+
+build {
+  sources = ["source.amazon-ebs.example"]
+  
+  provisioner "shell-local" {
+    inline = [
+      "echo 'Building with security group: ${data.aws-security-group.build_sg.id}'",
+      "echo 'Security group name: ${data.aws-security-group.build_sg.name}'",
+      "echo 'Security group description: ${data.aws-security-group.build_sg.description}'",
+      "echo 'VPC ID: ${data.aws-security-group.build_sg.vpc_id}'"
+    ]
+  }
+}
+```
+
+### Using Security Group with AppStream Builder
+
+```hcl
+packer {
+  required_plugins {
+    aws = {
+      version = ">= 0.0.1"
+      source  = "github.com/bdwyertech/aws"
+    }
+  }
+}
+
+data "aws-security-group" "appstream_sg" {
+  vpc_id = "vpc-12345678"
+  name   = "appstream-builder-sg"
+  region = "us-east-1"
+}
+
+data "aws-subnet" "appstream_subnet" {
+  vpc_id = "vpc-12345678"
+  tags = {
+    Name = "appstream-subnet"
+  }
+  region = "us-east-1"
+}
+
+source "appstream-image-builder" "windows" {
+  name                = "my-custom-appstream-image"
+  builder_name        = "my-image-builder"
+  source_image_name   = "AppStream-WinServer2019-12-05-2024"
+  instance_type       = "stream.standard.medium"
+  region              = "us-east-1"
+  
+  # Use the subnet and security group from the data sources
+  subnet_ids         = [data.aws-subnet.appstream_subnet.id]
+  security_group_ids = [data.aws-security-group.appstream_sg.id]
+  
+  communicator       = "winrm"
+  winrm_username     = "Administrator"
+  winrm_use_ssl      = true
+  winrm_insecure     = true
+}
+
+build {
+  sources = ["source.appstream-image-builder.windows"]
+  
+  provisioner "powershell" {
+    inline = [
+      "Write-Host 'Using security group: ${data.aws-security-group.appstream_sg.name}'",
+      "Write-Host 'Security group ID: ${data.aws-security-group.appstream_sg.id}'"
+    ]
+  }
+}
+```
+
+## Notes
+
+- At least one search criterion must be provided (id, name, vpc_id, tags, or filters).
+- If multiple security groups match the specified criteria, the data source will return an error asking you to refine your search.
+- The `filter` block allows for complex queries using any field supported by the AWS EC2 DescribeSecurityGroups API.
+- For a complete list of available filter names, see the [AWS EC2 DescribeSecurityGroups API documentation](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html).
+- This data source is compatible with Terraform's `aws_security_group` data source interface.
+- The ARN is computed automatically from the security group ID, owner ID, and region.
+- Use this data source to reference existing security groups rather than hardcoding security group IDs in your Packer templates.

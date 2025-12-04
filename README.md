@@ -1,9 +1,10 @@
-# Packer Plugin for AWS AppStream 2.0
+# Packer Plugin for AWS
 
-This plugin provides a complete set of Packer components for working with AWS AppStream 2.0:
-- **Builder**: Create AppStream images using Image Builder instances
-- **Data Source**: Query existing Image Builder instances
-- **Post-Processor**: Share and copy AppStream images across accounts and regions
+This plugin provides Packer components for working with AWS services:
+- **AppStream 2.0 Builder**: Create AppStream images using Image Builder instances
+- **AppStream 2.0 Data Sources**: Query existing Image Builder instances and images
+- **EC2 Data Sources**: Query VPC subnets and other EC2 resources
+- **AppStream 2.0 Post-Processor**: Share and copy AppStream images across accounts and regions
 
 ## Components
 
@@ -18,6 +19,18 @@ Creates AWS AppStream 2.0 images by launching an Image Builder instance, provisi
 Fetches information about an existing AppStream Image Builder instance, including its IP address, ARN, and state.
 
 [Full Data Source Documentation](docs/datasources/appstream-image-builder.mdx)
+
+### Data Source: `security-group`
+
+Fetches information about an AWS Security Group using various criteria like security group ID, name, VPC ID, tags, or custom filters. Compatible with Terraform's `aws_security_group` data source interface.
+
+[Full Data Source Documentation](docs/datasources/security-group.mdx)
+
+### Data Source: `subnet`
+
+Fetches information about an AWS VPC subnet using various criteria like subnet ID, VPC ID, CIDR block, tags, or custom filters. When multiple subnets match, you can select the one with the most free IPs (`most_free`) or a random one (`random`). Compatible with Terraform's `aws_subnet` data source interface.
+
+[Full Data Source Documentation](docs/datasources/subnet.mdx)
 
 ### Post-Processor: `appstream-share`
 
@@ -80,6 +93,26 @@ data "appstream-image-builder" "existing" {
   region = "us-east-1"
 }
 
+# Query a security group for network configuration
+data "aws-security-group" "build_sg" {
+  vpc_id = "vpc-12345678"
+  name   = "appstream-builder-sg"
+  region = "us-east-1"
+}
+
+# Query a VPC subnet for network configuration
+# If multiple match, use the one with most free IPs
+data "aws-subnet" "build_subnet" {
+  vpc_id    = "vpc-12345678"
+  most_free = true
+  region    = "us-east-1"
+  
+  filter {
+    name   = "tag:Tier"
+    values = ["private"]
+  }
+}
+
 # Build a new AppStream image
 source "appstream-image-builder" "windows" {
   name                = "my-custom-appstream-image"
@@ -88,8 +121,9 @@ source "appstream-image-builder" "windows" {
   instance_type       = "stream.standard.medium"
   region              = "us-east-1"
   
-  subnet_ids          = ["subnet-12345678"]
-  security_group_ids  = ["sg-12345678"]
+  # Use the subnet and security group from the data sources
+  subnet_ids          = [data.aws-subnet.build_subnet.id]
+  security_group_ids  = [data.aws-security-group.build_sg.id]
   
   tags = {
     Environment = "Production"

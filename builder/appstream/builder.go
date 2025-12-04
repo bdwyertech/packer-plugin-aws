@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer-plugin-sdk/common"
@@ -123,15 +122,12 @@ func (b *Builder) Prepare(raws ...any) ([]string, []string, error) {
 }
 
 func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook) (packersdk.Artifact, error) {
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	cfg, err := b.config.AccessConfig.GetAWSConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %v", err)
 	}
-	if b.config.RawRegion != "" {
-		cfg.Region = b.config.RawRegion
-	}
 
-	svc := appstream.NewFromConfig(cfg)
+	svc := appstream.NewFromConfig(*cfg)
 
 	// Setup the state bag and initial state for the steps
 	state := new(multistep.BasicStateBag)
@@ -184,7 +180,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 		Images:         state.Get("images").(map[string]string),
 		BuilderIdValue: BuilderId,
 		StateData:      map[string]any{"generated_data": state.Get("generated_data")},
-		Config:         cfg,
+		Config:         *cfg,
 	}
 
 	return artifact, nil

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer-plugin-sdk/common"
@@ -68,15 +67,12 @@ func (d *Datasource) Configure(raws ...any) error {
 
 func (d *Datasource) Execute() (cty.Value, error) {
 	ctx := context.TODO()
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	cfg, err := d.config.AccessConfig.GetAWSConfig(ctx)
 	if err != nil {
-		return cty.NullVal(cty.EmptyObject), fmt.Errorf("unable to load SDK config, %v", err)
-	}
-	if d.config.RawRegion != "" {
-		cfg.Region = d.config.RawRegion
+		return cty.NullVal(cty.EmptyObject), err
 	}
 
-	svc := appstream.NewFromConfig(cfg)
+	svc := appstream.NewFromConfig(*cfg)
 
 	resp, err := svc.DescribeImageBuilders(ctx, &appstream.DescribeImageBuildersInput{
 		Names: []string{d.config.Name},
