@@ -85,7 +85,7 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 		case types.ImageBuilderStateRunning:
 			builder = &imageBuilder
 		case types.ImageBuilderStatePending:
-			ui.Say(fmt.Sprintf("Waiting for ImageBuilder to become available (elapsed: %s)", elapsed))
+			ui.Say(fmt.Sprintf("Waiting for ImageBuilder (%s) to become available (elapsed: %s)", s.name, elapsed))
 			wait := 5 * time.Second
 			elapsed += wait
 			time.Sleep(wait)
@@ -100,7 +100,7 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 	if builder.NetworkAccessConfiguration != nil && builder.NetworkAccessConfiguration.EniPrivateIpAddress != nil {
 		state.Put("ip", *builder.NetworkAccessConfiguration.EniPrivateIpAddress)
 	} else {
-		state.Put("error", errors.New("failed to fetch address for imageBuilder"))
+		state.Put("error", errors.New("failed to fetch address for ImageBuilder"))
 		return multistep.ActionHalt
 	}
 
@@ -143,7 +143,7 @@ func (s *StepImageBuilderCreate) Cleanup(state multistep.StateBag) {
 				ui.Error(fmt.Sprintf("Error terminating ImageBuilder, may still be around: %s", err))
 			}
 			return
-		case types.ImageBuilderStatePending, types.ImageBuilderStateStopping:
+		case types.ImageBuilderStatePending, types.ImageBuilderStateStopping, types.ImageBuilderStateSnapshotting:
 			// We cannot Delete a builder while pending
 			ui.Say(fmt.Sprintf("Waiting for ImageBuilder to exit %s state (elapsed: %s)", imageBuilder.State, elapsed))
 		case types.ImageBuilderStateRunning:
