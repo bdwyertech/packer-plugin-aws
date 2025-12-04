@@ -44,7 +44,7 @@ packer {
   }
 }
 
-data "appstream-image-builder" "existing" {
+data "aws-appstream-image-builder" "existing" {
   name   = "my-existing-image-builder"
   region = "us-east-1"
 }
@@ -58,9 +58,9 @@ build {
   
   provisioner "shell-local" {
     inline = [
-      "echo 'Image Builder ARN: ${data.appstream-image-builder.existing.arn}'",
-      "echo 'Image Builder State: ${data.appstream-image-builder.existing.state}'",
-      "echo 'Image Builder IP: ${data.appstream-image-builder.existing.ip_address}'"
+      "echo 'Image Builder ARN: ${data.aws-appstream-image-builder.existing.arn}'",
+      "echo 'Image Builder State: ${data.aws-appstream-image-builder.existing.state}'",
+      "echo 'Image Builder IP: ${data.aws-appstream-image-builder.existing.ip_address}'"
     ]
   }
 }

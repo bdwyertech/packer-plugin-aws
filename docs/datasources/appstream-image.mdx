@@ -62,15 +62,15 @@ packer {
   }
 }
 
-data "appstream-image" "base" {
+data "aws-appstream-image" "base" {
   name   = "AppStream-WinServer2019-12-05-2024"
   region = "us-east-1"
 }
 
-source "appstream-image-builder" "windows" {
+source "aws-appstream-image-builder" "windows" {
   name              = "my-custom-image"
   builder_name      = "my-builder"
-  source_image_name = data.appstream-image.base.name
+  source_image_name = data.aws-appstream-image.base.name
   instance_type     = "stream.standard.medium"
   region            = "us-east-1"
 }
@@ -80,9 +80,9 @@ build {
   
   provisioner "powershell" {
     inline = [
-      "Write-Host 'Base Image: ${data.appstream-image.base.name}'",
-      "Write-Host 'Platform: ${data.appstream-image.base.platform}'",
-      "Write-Host 'Created: ${data.appstream-image.base.created_time}'"
+      "Write-Host 'Base Image: ${data.aws-appstream-image.base.name}'",
+      "Write-Host 'Platform: ${data.aws-appstream-image.base.platform}'",
+      "Write-Host 'Created: ${data.aws-appstream-image.base.created_time}'"
     ]
   }
 }
@@ -91,17 +91,17 @@ build {
 ### Find the latest image matching a pattern
 
 ```hcl
-data "appstream-image" "latest_windows" {
+data "aws-appstream-image" "latest_windows" {
   name_regex = "AppStream-WinServer2019-.*"
   type       = "PUBLIC"
   latest     = true
   region     = "us-east-1"
 }
 
-source "appstream-image-builder" "windows" {
+source "aws-appstream-image-builder" "windows" {
   name              = "my-custom-image"
   builder_name      = "my-builder"
-  source_image_name = data.appstream-image.latest_windows.name
+  source_image_name = data.aws-appstream-image.latest_windows.name
   instance_type     = "stream.standard.medium"
   region            = "us-east-1"
 }
@@ -111,7 +111,7 @@ build {
   
   provisioner "powershell" {
     inline = [
-      "Write-Host 'Using latest image: ${data.appstream-image.latest_windows.name}'"
+      "Write-Host 'Using latest image: ${data.aws-appstream-image.latest_windows.name}'"
     ]
   }
 }

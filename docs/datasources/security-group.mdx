@@ -224,7 +224,7 @@ data "aws-subnet" "appstream_subnet" {
   region = "us-east-1"
 }
 
-source "appstream-image-builder" "windows" {
+source "aws-appstream-image-builder" "windows" {
   name                = "my-custom-appstream-image"
   builder_name        = "my-image-builder"
   source_image_name   = "AppStream-WinServer2019-12-05-2024"

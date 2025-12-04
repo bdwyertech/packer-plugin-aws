@@ -160,7 +160,7 @@ build {
   }
   
   # Share the image with other accounts and regions
-  post-processor "appstream-share" {
+  post-processor "aws-appstream-share" {
     image_name          = "my-custom-appstream-image"
     account_ids         = ["123456789012", "987654321098"]
     region              = "us-east-1"

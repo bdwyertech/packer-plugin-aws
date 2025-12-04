@@ -46,7 +46,7 @@ packer {
   }
 }
 
-source "appstream-image-builder" "windows" {
+source "aws-appstream-image-builder" "windows" {
   name              = "my-custom-image"
   builder_name      = "my-image-builder"
   source_image_name = "AppStream-WinServer2019-12-05-2024"
@@ -57,7 +57,7 @@ source "appstream-image-builder" "windows" {
 build {
   sources = ["source.appstream-image-builder.windows"]
   
-  post-processor "appstream-share" {
+  post-processor "aws-appstream-share" {
     image_name  = "my-custom-image"
     account_ids = ["123456789012", "987654321098"]
     region      = "us-east-1"
@@ -71,7 +71,7 @@ build {
 build {
   sources = ["source.appstream-image-builder.windows"]
   
-  post-processor "appstream-share" {
+  post-processor "aws-appstream-share" {
     image_name          = "my-custom-image"
     account_ids         = ["123456789012", "987654321098"]
     region              = "us-east-1"
