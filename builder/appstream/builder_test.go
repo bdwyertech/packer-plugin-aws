@@ -19,6 +19,8 @@ func TestBuilder_Prepare(t *testing.T) {
 				"name":              "test-builder",
 				"source_image_name": "test-image",
 				"instance_type":     "stream.standard.small",
+				"communicator":      "winrm",
+				"winrm_username":    "Administrator",
 			},
 			wantErr: false,
 		},
