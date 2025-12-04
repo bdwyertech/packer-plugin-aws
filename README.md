@@ -2,7 +2,7 @@
 
 This plugin provides Packer components for working with AWS services:
 - **AppStream 2.0 Builder**: Create AppStream images using Image Builder instances
-- **AppStream 2.0 Data Sources**: Query existing Image Builder instances and images
+- **AppStream 2.0 Data Sources**: Query existing Images & Image Builder instances.
 - **EC2 Data Sources**: Query VPC subnets and other EC2 resources
 - **AppStream 2.0 Post-Processor**: Share and copy AppStream images across accounts and regions
 
@@ -13,6 +13,14 @@ This plugin provides Packer components for working with AWS services:
 Creates AWS AppStream 2.0 images by launching an Image Builder instance, provisioning it with your software and configurations, and then creating an image from it.
 
 [Full Builder Documentation](docs/builders/appstream-image-builder.mdx)
+
+
+### Data Source: `appstream-image`
+
+Fetches information about an existing AppStream Image.
+
+[Full Data Source Documentation](docs/datasources/appstream-image.mdx)
+
 
 ### Data Source: `appstream-image-builder`
 
@@ -88,21 +96,14 @@ packer {
 }
 
 # Query an existing Image Builder (optional)
-data "appstream-image-builder" "existing" {
-  name   = "my-existing-builder"
-  region = "us-east-1"
-}
-
-# Query a security group for network configuration
-data "aws-security-group" "build_sg" {
-  vpc_id = "vpc-12345678"
-  name   = "appstream-builder-sg"
-  region = "us-east-1"
+data "aws-appstream-image" "base" {
+  name_regex = "ORG-Windows2022-*"
+  latest     = true
 }
 
 # Query a VPC subnet for network configuration
 # If multiple match, use the one with most free IPs
-data "aws-subnet" "build_subnet" {
+data "aws-subnet" "this" {
   vpc_id    = "vpc-12345678"
   most_free = true
   region    = "us-east-1"
@@ -113,17 +114,28 @@ data "aws-subnet" "build_subnet" {
   }
 }
 
+# Query a security group for network configuration
+data "aws-security-group" "this" {
+  name   = "appstream-builder-sg"
+  region = data.aws-subnet.this.region
+
+  filter {
+    name   = "vpc-id"
+    values = [data.aws-subnet.this.vpc_id]
+  }
+}
+
 # Build a new AppStream image
-source "appstream-image-builder" "windows" {
+source "aws-appstream-image-builder" "windows" {
   name                = "my-custom-appstream-image"
   builder_name        = "my-image-builder"
-  source_image_name   = "AppStream-WinServer2019-12-05-2024"
+  source_image_name   = data.aws-appstream-image.base.name
   instance_type       = "stream.standard.medium"
   region              = "us-east-1"
   
   # Use the subnet and security group from the data sources
-  subnet_ids          = [data.aws-subnet.build_subnet.id]
-  security_group_ids  = [data.aws-security-group.build_sg.id]
+  subnet_ids          = [data.aws-subnet.this.id]
+  security_group_ids  = [data.aws-security-group.this.id]
   
   tags = {
     Environment = "Production"
@@ -171,7 +183,7 @@ build {
 
 ```bash
 git clone https://github.com/bdwyertech/packer-plugin-aws.git
-cd packer-plugin-aws-appstream
+cd packer-plugin-aws
 go build .
 ```
 
