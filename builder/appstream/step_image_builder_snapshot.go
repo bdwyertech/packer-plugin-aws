@@ -35,6 +35,11 @@ func (s *StepImageBuilderSnapshot) Run(ctx context.Context, state multistep.Stat
 		return multistep.ActionHalt
 	}
 
+	if s.config.SkipCreateImage {
+		ui.Say("Skipping AppStream Image creation because 'skip_create_image' is true")
+		return multistep.ActionContinue
+	}
+
 	ui.Say("Capturing the AppStream Image...")
 
 	// Construct the command to create the image
