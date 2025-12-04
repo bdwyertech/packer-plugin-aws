@@ -1,0 +1,27 @@
+<!-- Code generated from the comments of the Config struct in datasource/subnet/datasource.go; DO NOT EDIT MANUALLY -->
+
+- `id` (string) - ID of the specific subnet to retrieve
+
+- `vpc_id` (string) - ID of the VPC that the desired subnet belongs to
+
+- `cidr_block` (string) - CIDR block of the desired subnet
+
+- `ipv6_cidr_block` (string) - IPv6 CIDR block of the desired subnet
+
+- `availability_zone` (string) - Availability zone where the subnet must reside
+
+- `availability_zone_id` (string) - ID of the Availability Zone for the subnet
+
+- `default_for_az` (\*bool) - Whether the desired subnet must be the default subnet for its associated availability zone
+
+- `state` (string) - State that the desired subnet must have
+
+- `tags` (map[string]string) - Map of tags, each pair of which must exactly match a pair on the desired subnet
+
+- `filter` ([]Filter) - Custom filters for more complex queries
+
+- `most_free` (bool) - The Subnet with the most free IPv4 addresses will be used if multiple Subnets match the filter
+
+- `random` (bool) - A random Subnet will be used if multiple Subnets match the filter. most_free has precedence over this
+
+<!-- End of code generated from the comments of the Config struct in datasource/subnet/datasource.go; -->

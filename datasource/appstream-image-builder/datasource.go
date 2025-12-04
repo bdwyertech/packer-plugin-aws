@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
+	"github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer-plugin-sdk/common"
 	"github.com/hashicorp/packer-plugin-sdk/hcl2helper"
@@ -24,6 +26,8 @@ type Config struct {
 	awscommon.AccessConfig `mapstructure:",squash"`
 	// The name of the image-builder you want to query.
 	Name string `mapstructure:"name" required:"true"`
+	// How long to wait for the image builder to be ready.
+	WaitTimeout time.Duration `mapstructure:"wait_timeout"`
 }
 
 type Datasource struct {
@@ -58,6 +62,10 @@ func (d *Datasource) Configure(raws ...any) error {
 		errs = packersdk.MultiErrorAppend(errs, fmt.Errorf("a 'name' must be provided"))
 	}
 
+	if d.config.WaitTimeout == 0 {
+		d.config.WaitTimeout = 5 * time.Minute
+	}
+
 	if errs != nil && len(errs.Errors) > 0 {
 		return errs
 	}
@@ -87,6 +95,37 @@ func (d *Datasource) Execute() (cty.Value, error) {
 	}
 
 	builder := resp.ImageBuilders[0]
+
+	switch builder.State {
+	case types.ImageBuilderStatePending:
+		for {
+			ctxTimeout, cancel := context.WithTimeout(ctx, d.config.WaitTimeout)
+			defer cancel()
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+
+			select {
+			case <-ctxTimeout.Done():
+				return cty.NullVal(cty.EmptyObject), fmt.Errorf("timed out waiting for image builder %s to be ready", d.config.Name)
+			case <-ticker.C:
+				// continue to wait
+			}
+			// Wait for the image builder to be ready
+			resp, err := svc.DescribeImageBuilders(ctx, &appstream.DescribeImageBuildersInput{
+				Names: []string{*builder.Name},
+			})
+			if err != nil {
+				return cty.NullVal(cty.EmptyObject), fmt.Errorf("error describing image builder: %v", err)
+			}
+			if resp.ImageBuilders[0].State == types.ImageBuilderStateRunning {
+				break
+			}
+		}
+	case types.ImageBuilderStateRunning:
+		break
+	default:
+		return cty.NullVal(cty.EmptyObject), fmt.Errorf("image builder %s is in state %s", d.config.Name, builder.State)
+	}
 
 	ipAddress := ""
 	if builder.NetworkAccessConfiguration != nil && builder.NetworkAccessConfiguration.EniPrivateIpAddress != nil {

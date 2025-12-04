@@ -46,6 +46,7 @@ type DatasourceOutput struct {
 	ID           string  `mapstructure:"id"`
 	ARN          string  `mapstructure:"arn"`
 	Name         string  `mapstructure:"name"`
+	Region       string  `mapstructure:"region"`
 	BaseImageArn *string `mapstructure:"base_image_arn"`
 	CreatedTime  string  `mapstructure:"created_time"`
 	Platform     string  `mapstructure:"platform"`
@@ -126,17 +127,17 @@ func (d *Datasource) Execute() (cty.Value, error) {
 		if err != nil {
 			return cty.NullVal(cty.EmptyObject), fmt.Errorf("error marshaling image: %v", err)
 		}
-		_ = raw
 
 		output := &DatasourceOutput{
 			ID:           *latestImage.Arn,
 			ARN:          *latestImage.Arn,
 			Name:         *latestImage.Name,
+			Region:       cfg.Region,
 			BaseImageArn: latestImage.BaseImageArn,
 			Platform:     string(latestImage.Platform),
 			Visibility:   string(latestImage.Visibility),
 			CreatedTime:  (*latestImage.CreatedTime).Format(time.RFC822),
-			// Raw:          string(raw),
+			Raw:          string(raw),
 		}
 
 		return hcl2helper.HCL2ValueFromConfig(output, d.OutputSpec()), nil
@@ -160,6 +161,7 @@ func (d *Datasource) Execute() (cty.Value, error) {
 	output := DatasourceOutput{
 		ID:           *resp.Images[0].Arn,
 		ARN:          *resp.Images[0].Arn,
+		Region:       cfg.Region,
 		Name:         *resp.Images[0].Name,
 		BaseImageArn: resp.Images[0].BaseImageArn,
 		Platform:     string(resp.Images[0].Platform),

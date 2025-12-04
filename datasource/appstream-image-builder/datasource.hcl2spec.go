@@ -36,6 +36,7 @@ type FlatConfig struct {
 	VaultAWSEngine        *common.FlatVaultAWSEngineOptions `mapstructure:"vault_aws_engine" required:"false" cty:"vault_aws_engine" hcl:"vault_aws_engine"`
 	PollingConfig         *common.FlatAWSPollingConfig      `mapstructure:"aws_polling" required:"false" cty:"aws_polling" hcl:"aws_polling"`
 	Name                  *string                           `mapstructure:"name" required:"true" cty:"name" hcl:"name"`
+	WaitTimeout           *string                           `mapstructure:"wait_timeout" cty:"wait_timeout" hcl:"wait_timeout"`
 }
 
 // FlatMapstructure returns a new FlatConfig.
@@ -75,6 +76,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"vault_aws_engine":              &hcldec.BlockSpec{TypeName: "vault_aws_engine", Nested: hcldec.ObjectSpec((*common.FlatVaultAWSEngineOptions)(nil).HCL2Spec())},
 		"aws_polling":                   &hcldec.BlockSpec{TypeName: "aws_polling", Nested: hcldec.ObjectSpec((*common.FlatAWSPollingConfig)(nil).HCL2Spec())},
 		"name":                          &hcldec.AttrSpec{Name: "name", Type: cty.String, Required: false},
+		"wait_timeout":                  &hcldec.AttrSpec{Name: "wait_timeout", Type: cty.String, Required: false},
 	}
 	return s
 }

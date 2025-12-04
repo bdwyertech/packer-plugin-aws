@@ -1,0 +1,55 @@
+<!-- Code generated from the comments of the DatasourceOutput struct in datasource/subnet/datasource.go; DO NOT EDIT MANUALLY -->
+
+- `id` (string) - ID of the subnet
+
+- `arn` (string) - ARN of the subnet
+
+- `region` (string) - AWS region where the subnet is located
+
+- `vpc_id` (string) - ID of the VPC the subnet belongs to
+
+- `cidr_block` (string) - CIDR block of the subnet
+
+- `ipv6_cidr_block` (string) - IPv6 CIDR block of the subnet
+
+- `availability_zone` (string) - Availability zone of the subnet
+
+- `availability_zone_id` (string) - ID of the availability zone
+
+- `available_ip_address_count` (int32) - Number of available IP addresses in the subnet
+
+- `assign_ipv6_address_on_creation` (bool) - Whether IPv6 addresses are assigned on creation
+
+- `ipv6_cidr_block_association_id` (string) - Association ID of the IPv6 CIDR block
+
+- `ipv6_native` (bool) - Whether this is an IPv6-only subnet
+
+- `map_public_ip_on_launch` (bool) - Whether public IP addresses are assigned on instance launch
+
+- `customer_owned_ipv4_pool` (string) - Identifier of customer owned IPv4 address pool
+
+- `map_customer_owned_ip_on_launch` (bool) - Whether customer owned IP addresses are assigned on network interface creation
+
+- `enable_dns64` (bool) - Whether DNS queries return synthetic IPv6 addresses for IPv4-only destinations
+
+- `enable_resource_name_dns_aaaa_record_on_launch` (bool) - Whether to respond to DNS queries for instance hostnames with DNS AAAA records
+
+- `enable_resource_name_dns_a_record_on_launch` (bool) - Whether to respond to DNS queries for instance hostnames with DNS A records
+
+- `private_dns_hostname_type_on_launch` (string) - Type of hostnames assigned to instances in the subnet at launch
+
+- `enable_lni_at_device_index` (int32) - Device position for local network interfaces in this subnet
+
+- `default_for_az` (bool) - Whether this is the default subnet for its availability zone
+
+- `state` (string) - State of the subnet
+
+- `tags` (map[string]string) - Tags assigned to the subnet
+
+- `owner_id` (string) - ID of the AWS account that owns the subnet
+
+- `outpost_arn` (string) - ARN of the Outpost
+
+- `raw` (string) - Raw JSON response from AWS API
+
+<!-- End of code generated from the comments of the DatasourceOutput struct in datasource/subnet/datasource.go; -->

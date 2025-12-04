@@ -91,6 +91,7 @@ type FlatDatasourceOutput struct {
 	ID           *string `mapstructure:"id" cty:"id" hcl:"id"`
 	ARN          *string `mapstructure:"arn" cty:"arn" hcl:"arn"`
 	Name         *string `mapstructure:"name" cty:"name" hcl:"name"`
+	Region       *string `mapstructure:"region" cty:"region" hcl:"region"`
 	BaseImageArn *string `mapstructure:"base_image_arn" cty:"base_image_arn" hcl:"base_image_arn"`
 	CreatedTime  *string `mapstructure:"created_time" cty:"created_time" hcl:"created_time"`
 	Platform     *string `mapstructure:"platform" cty:"platform" hcl:"platform"`
@@ -113,6 +114,7 @@ func (*FlatDatasourceOutput) HCL2Spec() map[string]hcldec.Spec {
 		"id":             &hcldec.AttrSpec{Name: "id", Type: cty.String, Required: false},
 		"arn":            &hcldec.AttrSpec{Name: "arn", Type: cty.String, Required: false},
 		"name":           &hcldec.AttrSpec{Name: "name", Type: cty.String, Required: false},
+		"region":         &hcldec.AttrSpec{Name: "region", Type: cty.String, Required: false},
 		"base_image_arn": &hcldec.AttrSpec{Name: "base_image_arn", Type: cty.String, Required: false},
 		"created_time":   &hcldec.AttrSpec{Name: "created_time", Type: cty.String, Required: false},
 		"platform":       &hcldec.AttrSpec{Name: "platform", Type: cty.String, Required: false},
