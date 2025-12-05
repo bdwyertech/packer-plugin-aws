@@ -198,6 +198,11 @@ github.com/aws/aws-sdk-go-v2/service/dynamodb/types
 github.com/aws/aws-sdk-go-v2/service/ec2
 github.com/aws/aws-sdk-go-v2/service/ec2/internal/endpoints
 github.com/aws/aws-sdk-go-v2/service/ec2/types
+# github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.29.1
+## explicit; go 1.22
+github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect
+github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect/internal/endpoints
+github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect/types
 # github.com/aws/aws-sdk-go-v2/service/iam v1.52.2
 ## explicit; go 1.23
 github.com/aws/aws-sdk-go-v2/service/iam
@@ -242,6 +247,11 @@ github.com/aws/aws-sdk-go-v2/service/sns/types
 github.com/aws/aws-sdk-go-v2/service/sqs
 github.com/aws/aws-sdk-go-v2/service/sqs/internal/endpoints
 github.com/aws/aws-sdk-go-v2/service/sqs/types
+# github.com/aws/aws-sdk-go-v2/service/ssm v1.61.1
+## explicit; go 1.22
+github.com/aws/aws-sdk-go-v2/service/ssm
+github.com/aws/aws-sdk-go-v2/service/ssm/internal/endpoints
+github.com/aws/aws-sdk-go-v2/service/ssm/types
 # github.com/aws/aws-sdk-go-v2/service/sso v1.30.5
 ## explicit; go 1.23
 github.com/aws/aws-sdk-go-v2/service/sso
@@ -469,13 +479,23 @@ github.com/hashicorp/hcl/v2/ext/customdecode
 github.com/hashicorp/hcl/v2/hcldec
 # github.com/hashicorp/packer-plugin-amazon v1.8.0
 ## explicit; go 1.24.0
+github.com/hashicorp/packer-plugin-amazon/builder/chroot
 github.com/hashicorp/packer-plugin-amazon/builder/common
 github.com/hashicorp/packer-plugin-amazon/builder/common/awserrors
 github.com/hashicorp/packer-plugin-amazon/builder/common/ssm
+github.com/hashicorp/packer-plugin-amazon/builder/ebs
+github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate
+github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume
+github.com/hashicorp/packer-plugin-amazon/builder/instance
+github.com/hashicorp/packer-plugin-amazon/common
+github.com/hashicorp/packer-plugin-amazon/common/awserrors
+github.com/hashicorp/packer-plugin-amazon/common/clients
+github.com/hashicorp/packer-plugin-amazon/common/ssm
 github.com/hashicorp/packer-plugin-amazon/version
 # github.com/hashicorp/packer-plugin-sdk v0.6.4
 ## explicit; go 1.23.0
 github.com/hashicorp/packer-plugin-sdk/acctest
+github.com/hashicorp/packer-plugin-sdk/chroot
 github.com/hashicorp/packer-plugin-sdk/common
 github.com/hashicorp/packer-plugin-sdk/communicator
 github.com/hashicorp/packer-plugin-sdk/communicator/ssh
@@ -497,6 +517,8 @@ github.com/hashicorp/packer-plugin-sdk/rpc
 github.com/hashicorp/packer-plugin-sdk/sdk-internals/communicator/none
 github.com/hashicorp/packer-plugin-sdk/sdk-internals/communicator/ssh
 github.com/hashicorp/packer-plugin-sdk/sdk-internals/communicator/winrm
+github.com/hashicorp/packer-plugin-sdk/shell
+github.com/hashicorp/packer-plugin-sdk/shell-local
 github.com/hashicorp/packer-plugin-sdk/shell-local/localexec
 github.com/hashicorp/packer-plugin-sdk/template
 github.com/hashicorp/packer-plugin-sdk/template/config

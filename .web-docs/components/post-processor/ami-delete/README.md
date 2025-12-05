@@ -1,0 +1,161 @@
+
+## Configuration Reference
+
+**Optional**
+
+### AWS Configuration
+
+- `access_key` (string) - AWS access key. If not specified, Packer will use the standard AWS credential chain.
+
+- `secret_key` (string) - AWS secret key. If not specified, Packer will use the standard AWS credential chain.
+
+- `region` (string) - AWS region where the AMI exists. If not specified, will use the region from the artifact.
+
+- `profile` (string) - AWS profile to use from your credentials file.
+
+- `assume_role` (object) - Configuration for assuming an IAM role. Contains:
+  - `role_arn` (string) - ARN of the role to assume.
+  - `session_name` (string) - Session name for the assumed role.
+  - `external_id` (string) - External ID for assuming the role.
+
+## Example Usage
+
+### Basic Usage
+
+```hcl
+packer {
+  required_plugins {
+    amazon = {
+      version = ">= 1.0.0"
+      source  = "github.com/hashicorp/amazon"
+    }
+    aws = {
+      version = ">= 0.0.1"
+      source  = "github.com/bdwyertech/aws"
+    }
+  }
+}
+
+source "amazon-ebs" "example" {
+  region        = "us-east-1"
+  source_ami    = "ami-0c55b159cbfafe1f0"
+  instance_type = "t2.micro"
+  ssh_username  = "ubuntu"
+  ami_name      = "temporary-ami-{{timestamp}}"
+}
+
+build {
+  sources = ["source.amazon-ebs.example"]
+  
+  post-processor "aws-ami-delete" {
+    region = "us-east-1"
+  }
+}
+```
+
+### With IAM Role Assumption
+
+```hcl
+build {
+  sources = ["source.amazon-ebs.example"]
+  
+  post-processor "aws-ami-delete" {
+    region = "us-east-1"
+    assume_role {
+      role_arn     = "arn:aws:iam::123456789012:role/PackerRole"
+      session_name = "packer-ami-cleanup"
+    }
+  }
+}
+```
+
+### Multi-Region Cleanup
+
+When your AMI has been copied to multiple regions, the post-processor will automatically detect all regions from the artifact ID and delete the AMI in each region:
+
+```hcl
+source "amazon-ebs" "multi-region" {
+  region        = "us-east-1"
+  source_ami    = "ami-0c55b159cbfafe1f0"
+  instance_type = "t2.micro"
+  ssh_username  = "ubuntu"
+  ami_name      = "multi-region-ami-{{timestamp}}"
+  ami_regions   = ["us-west-2", "eu-central-1"]
+}
+
+build {
+  sources = ["source.amazon-ebs.multi-region"]
+  
+  # This will delete the AMI in all regions (us-east-1, us-west-2, eu-central-1)
+  post-processor "aws-ami-delete" {}
+}
+```
+
+## How It Works
+
+1. **Validate Builder**: The post-processor verifies that the artifact comes from a supported Amazon builder (EBS, EBS Surrogate, EBS Volume, Chroot, or Instance Store).
+
+2. **Parse Artifact ID**: Extracts the AMI IDs and their regions from the Packer artifact ID (format: `region:ami-id,region:ami-id`).
+
+3. **Locate AMI**: For each AMI, queries AWS to get the full AMI details including associated snapshots.
+
+4. **Deregister AMI**: Deregisters the AMI in each region.
+
+5. **Delete Snapshots**: Deletes all EBS snapshots associated with the AMI's block device mappings.
+
+## Supported Builders
+
+This post-processor works with artifacts from the following Amazon builders:
+
+- `amazon-ebs`
+- `amazon-ebssurrogate`
+- `amazon-ebsvolume`
+- `amazon-chroot`
+- `amazon-instance`
+
+## Notes
+
+- **Destructive Operation**: This post-processor permanently deletes AMIs and snapshots. Use with caution.
+- **Multi-Region Support**: Automatically handles AMIs that exist in multiple regions based on the artifact ID.
+- **Snapshot Cleanup**: All EBS snapshots associated with the AMI are automatically deleted.
+- **Permissions Required**: Ensure your AWS credentials have permissions for `ec2:DeregisterImage`, `ec2:DeleteSnapshot`, and `ec2:DescribeImages`.
+- **Artifact Preservation**: The post-processor returns the original artifact, so it can be chained with other post-processors if needed.
+- **Idempotent**: If an AMI or snapshot has already been deleted, the operation will fail. Ensure AMIs exist before running the post-processor.
+
+## Common Use Cases
+
+### Cleanup After Testing
+
+Delete temporary AMIs created during CI/CD pipeline testing:
+
+```hcl
+build {
+  sources = ["source.amazon-ebs.test"]
+  
+  provisioner "shell" {
+    inline = ["echo 'Running tests...'"]
+  }
+  
+  post-processor "aws-ami-delete" {
+    region = "us-east-1"
+  }
+}
+```
+
+### Conditional Deletion
+
+Use Packer's `only` or `except` directives to conditionally delete AMIs:
+
+```hcl
+build {
+  sources = ["source.amazon-ebs.example"]
+  
+  post-processor "manifest" {
+    output = "manifest.json"
+  }
+  
+  post-processor "aws-ami-delete" {
+    only   = ["source.amazon-ebs.example"]
+    region = "us-east-1"
+  }
+}
