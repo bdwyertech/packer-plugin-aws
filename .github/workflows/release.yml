@@ -21,12 +21,22 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
       - name: Checkout
         uses: actions/checkout@v6
       - name: Unshallow
         run: git fetch --prune --unshallow
-      - name: Free Disk Space
-        run: bash .github/workflows/_free_disk_space.sh
+      # - name: Free Disk Space
+      #   run: bash .github/workflows/_free_disk_space.sh
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
