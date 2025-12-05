@@ -26,7 +26,7 @@ jobs:
       - name: Unshallow
         run: git fetch --prune --unshallow
       - name: Free Disk Space
-        run: .github/workflows/_free_disk_space.sh
+        run: bash .github/workflows/_free_disk_space.sh
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
