@@ -34,7 +34,7 @@
 ```hcl
 packer {
   required_plugins {
-    aws-appstream = {
+    aws = {
       version = ">= 0.0.1"
       source  = "github.com/bdwyertech/aws"
     }

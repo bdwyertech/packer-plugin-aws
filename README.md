@@ -5,6 +5,7 @@ This plugin provides Packer components for working with AWS services:
 - **AppStream 2.0 Data Sources**: Query existing Images & Image Builder instances.
 - **EC2 Data Sources**: Query VPC subnets and other EC2 resources
 - **AppStream 2.0 Post-Processor**: Share and copy AppStream images across accounts and regions
+- **AMI Post-Processor**: Delete AMIs and their associated EBS snapshots
 
 ## Components
 
@@ -46,6 +47,12 @@ Shares AppStream images with other AWS accounts and optionally copies them to ad
 
 [Full Post-Processor Documentation](docs/post-processors/appstream-share.mdx)
 
+### Post-Processor: `ami-delete`
+
+Deletes AWS AMIs and their associated EBS snapshots. Useful for cleanup operations or removing temporary AMIs created during multi-step build processes.
+
+[Full Post-Processor Documentation](docs/post-processors/ami-delete.mdx)
+
 ## Installation
 
 ### Using `packer init` (Recommended)
@@ -55,7 +62,7 @@ Add the plugin to your Packer template:
 ```hcl
 packer {
   required_plugins {
-    aws-appstream = {
+    aws = {
       version = ">= 0.0.1"
       source  = "github.com/bdwyertech/aws"
     }
@@ -72,13 +79,13 @@ packer init .
 
 1. **Build the plugin:**
    ```bash
-   go build -o packer-plugin-aws-appstream .
+   go build -o packer-plugin-aws .
    ```
 
 2. **Install:**
    ```bash
    mkdir -p ~/.packer.d/plugins
-   mv packer-plugin-aws-appstream ~/.packer.d/plugins/
+   mv packer-plugin-aws ~/.packer.d/plugins/
    ```
 
 ## Quick Start Example
@@ -88,7 +95,7 @@ Here's a complete example that demonstrates all three components:
 ```hcl
 packer {
   required_plugins {
-    aws-appstream = {
+    aws = {
       version = ">= 0.0.1"
       source  = "github.com/bdwyertech/aws"
     }
@@ -200,3 +207,4 @@ See LICENSE file for details.
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
+ 

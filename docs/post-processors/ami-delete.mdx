@@ -4,22 +4,16 @@ The `ami-delete` post-processor is used to delete AWS AMIs and their associated 
 
 ## Configuration Reference
 
+This post-processor uses the same AWS authentication configuration as the [Hashicorp Amazon plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/amazon#authentication). All authentication methods supported by that plugin (access keys, profiles, IAM roles, etc.) are available here.
+
 **Optional**
 
-### AWS Configuration
-
-- `access_key` (string) - AWS access key. If not specified, Packer will use the standard AWS credential chain.
-
-- `secret_key` (string) - AWS secret key. If not specified, Packer will use the standard AWS credential chain.
-
-- `region` (string) - AWS region where the AMI exists. If not specified, will use the region from the artifact.
-
-- `profile` (string) - AWS profile to use from your credentials file.
-
-- `assume_role` (object) - Configuration for assuming an IAM role. Contains:
-  - `role_arn` (string) - ARN of the role to assume.
-  - `session_name` (string) - Session name for the assumed role.
-  - `external_id` (string) - External ID for assuming the role.
+All AWS authentication and configuration options from the Amazon plugin are supported. See the [Amazon plugin authentication documentation](https://developer.hashicorp.com/packer/integrations/hashicorp/amazon#authentication) for details on:
+- Access keys and secret keys
+- AWS profiles
+- IAM role assumption
+- Session tokens
+- Region configuration
 
 ## Example Usage
 
@@ -52,22 +46,6 @@ build {
   
   post-processor "aws-ami-delete" {
     region = "us-east-1"
-  }
-}
-```
-
-### With IAM Role Assumption
-
-```hcl
-build {
-  sources = ["source.amazon-ebs.example"]
-  
-  post-processor "aws-ami-delete" {
-    region = "us-east-1"
-    assume_role {
-      role_arn     = "arn:aws:iam::123456789012:role/PackerRole"
-      session_name = "packer-ami-cleanup"
-    }
   }
 }
 ```

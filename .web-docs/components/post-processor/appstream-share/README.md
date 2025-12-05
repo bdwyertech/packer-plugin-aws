@@ -1,6 +1,8 @@
 
 ## Configuration Reference
 
+This post-processor uses the same AWS authentication configuration as the [Hashicorp Amazon plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/amazon#authentication). All authentication methods supported by that plugin (access keys, profiles, IAM roles, etc.) are available here.
+
 **Required**
 
 - `image_name` (string) - The name of the AppStream image to share.
@@ -8,16 +10,6 @@
 - `account_ids` ([]string) - List of AWS Account IDs to share the image with.
 
 **Optional**
-
-### AWS Configuration
-
-- `access_key` (string) - AWS access key. If not specified, Packer will use the standard AWS credential chain.
-
-- `secret_key` (string) - AWS secret key. If not specified, Packer will use the standard AWS credential chain.
-
-- `region` (string) - AWS region where the source image exists.
-
-- `profile` (string) - AWS profile to use from your credentials file.
 
 ### Sharing Configuration
 
@@ -36,7 +28,7 @@
 ```hcl
 packer {
   required_plugins {
-    aws-appstream = {
+    aws = {
       version = ">= 0.0.1"
       source  = "github.com/bdwyertech/aws"
     }
