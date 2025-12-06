@@ -21,20 +21,18 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      - run: df -h
       - name: "node-cleanup"
         # this should increase free space from ~21gb to ~38gb
         run: |
+          df -h
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
           sudo docker builder prune -a
           df -h
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Unshallow
-        run: git fetch --prune --unshallow
-      # - name: Free Disk Space
-      #   run: bash .github/workflows/_free_disk_space.sh
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
