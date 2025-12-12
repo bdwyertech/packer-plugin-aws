@@ -48,6 +48,8 @@ type PostProcessor struct {
 	config Config
 }
 
+var _ packer.PostProcessor = new(PostProcessor)
+
 func (p *PostProcessor) ConfigSpec() hcldec.ObjectSpec {
 	return p.config.FlatMapstructure().HCL2Spec()
 }

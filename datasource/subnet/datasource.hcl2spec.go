@@ -42,7 +42,6 @@ type FlatConfig struct {
 	AvailabilityZone      *string                           `mapstructure:"availability_zone" required:"false" cty:"availability_zone" hcl:"availability_zone"`
 	AvailabilityZoneID    *string                           `mapstructure:"availability_zone_id" required:"false" cty:"availability_zone_id" hcl:"availability_zone_id"`
 	DefaultForAz          *bool                             `mapstructure:"default_for_az" required:"false" cty:"default_for_az" hcl:"default_for_az"`
-	State                 *string                           `mapstructure:"state" required:"false" cty:"state" hcl:"state"`
 	Tags                  map[string]string                 `mapstructure:"tags" required:"false" cty:"tags" hcl:"tags"`
 	Filters               []FlatFilter                      `mapstructure:"filter" required:"false" cty:"filter" hcl:"filter"`
 	MostFree              *bool                             `mapstructure:"most_free" required:"false" cty:"most_free" hcl:"most_free"`
@@ -92,7 +91,6 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"availability_zone":             &hcldec.AttrSpec{Name: "availability_zone", Type: cty.String, Required: false},
 		"availability_zone_id":          &hcldec.AttrSpec{Name: "availability_zone_id", Type: cty.String, Required: false},
 		"default_for_az":                &hcldec.AttrSpec{Name: "default_for_az", Type: cty.Bool, Required: false},
-		"state":                         &hcldec.AttrSpec{Name: "state", Type: cty.String, Required: false},
 		"tags":                          &hcldec.AttrSpec{Name: "tags", Type: cty.Map(cty.String), Required: false},
 		"filter":                        &hcldec.BlockListSpec{TypeName: "filter", Nested: hcldec.ObjectSpec((*FlatFilter)(nil).HCL2Spec())},
 		"most_free":                     &hcldec.AttrSpec{Name: "most_free", Type: cty.Bool, Required: false},

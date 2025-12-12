@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"sort"
 
@@ -50,8 +51,6 @@ type Config struct {
 	AvailabilityZoneID string `mapstructure:"availability_zone_id" required:"false"`
 	// Whether the desired subnet must be the default subnet for its associated availability zone
 	DefaultForAz *bool `mapstructure:"default_for_az" required:"false"`
-	// State that the desired subnet must have
-	State string `mapstructure:"state" required:"false"`
 	// Map of tags, each pair of which must exactly match a pair on the desired subnet
 	Tags map[string]string `mapstructure:"tags" required:"false"`
 	// Custom filters for more complex queries
@@ -151,7 +150,6 @@ func (d *Datasource) Configure(raws ...any) error {
 		d.config.AvailabilityZone != "" ||
 		d.config.AvailabilityZoneID != "" ||
 		d.config.DefaultForAz != nil ||
-		d.config.State != "" ||
 		len(d.config.Tags) > 0 ||
 		len(d.config.Filters) > 0
 
@@ -187,6 +185,8 @@ func (d *Datasource) Execute() (cty.Value, error) {
 	// If ID is specified, use it directly
 	if d.config.ID != "" {
 		input.SubnetIds = []string{d.config.ID}
+	} else {
+		log.Printf("Using Subnet Filters %v", filters)
 	}
 
 	resp, err := svc.DescribeSubnets(ctx, input)
@@ -273,7 +273,12 @@ func (d *Datasource) Execute() (cty.Value, error) {
 
 // buildFilters constructs EC2 filters from the datasource configuration
 func (d *Datasource) buildFilters() []types.Filter {
-	var filters []types.Filter
+	filters := []types.Filter{
+		{
+			Name:   aws.String("state"),
+			Values: []string{"available"},
+		},
+	}
 
 	// Add filters for each configured parameter
 	if d.config.VpcID != "" {
@@ -315,13 +320,6 @@ func (d *Datasource) buildFilters() []types.Filter {
 		filters = append(filters, types.Filter{
 			Name:   aws.String("default-for-az"),
 			Values: []string{fmt.Sprintf("%t", *d.config.DefaultForAz)},
-		})
-	}
-
-	if d.config.State != "" {
-		filters = append(filters, types.Filter{
-			Name:   aws.String("state"),
-			Values: []string{d.config.State},
 		})
 	}
 
