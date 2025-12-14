@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hcldec"
@@ -48,12 +47,41 @@ type Config struct {
 	awscommon.AMIConfig    `mapstructure:",squash"`
 
 	// Variables specific to this post-processor
-	RoleName        string `mapstructure:"role_name"`
-	CopyConcurrency int    `mapstructure:"copy_concurrency"`
-	EnsureAvailable bool   `mapstructure:"ensure_available"`
-	KeepArtifact    string `mapstructure:"keep_artifact"`
-	ManifestOutput  string `mapstructure:"manifest_output"`
-	TagsOnly        bool   `mapstructure:"tags_only"`
+	RoleName string `mapstructure:"role_name"`
+	// Limit the number of copies executed in parallel (default: unlimited).
+	CopyConcurrency int `mapstructure:"copy_concurrency"`
+	// Specify a completion duration, in 15 minute increments, to initiate a
+	// time-based AMI copy. The specified completion duration applies to each of the
+	// snapshots associated with the AMI. Each snapshot associated with the AMI will be
+	// completed within the specified completion duration, with copy throughput
+	// automatically adjusted for each snapshot based on its size to meet the timing
+	// target.
+	//
+	// If you do not specify a value, the AMI copy operation is completed on a
+	// best-effort basis.
+	//
+	// If you initiate two time-based copy operations for the same snapshot or AMI,
+	// the second copy operation's completion duration starts only after the first
+	// copy operation completes.
+	//
+	// This parameter is not supported when copying an AMI to or from a Local Zone, or
+	// to an Outpost.
+	//
+	// For more information, see [Time-based copies for Amazon EBS snapshots and EBS-backed AMIs].
+	//
+	// [Time-based copies for Amazon EBS snapshots and EBS-backed AMIs]: https://docs.aws.amazon.com/ebs/latest/userguide/time-based-copies.html
+	CopyDurationMinutes *int64 `mapstructure:"copy_duration_minutes"`
+	// Maximum time, in minutes, to wait for the copied AMI to become available. (default: 60)
+	CopyTimeoutMinutes *int `mapstructure:"copy_timeout_minutes"`
+	// Wait for the copied AMI to become available before returning.
+	EnsureAvailable bool `mapstructure:"ensure_available"`
+	// remove the original generated AMI after copy
+	KeepArtifact pkrconfig.Trilean `mapstructure:"keep_artifact"`
+	// the name of the file we output AMI IDs to, in JSON format (default: no manifest file is written)
+	ManifestOutput string `mapstructure:"manifest_output"`
+
+	// if set to true, then the AMI won't be copied, but the tags will be duplicated on the shared AMI in the destination account.
+	TagsOnly bool `mapstructure:"tags_only"`
 
 	Targets []Target `mapstructure:"targets"`
 
@@ -95,8 +123,8 @@ func (p *PostProcessor) Configure(raws ...any) error {
 		return errors.New("ami_users or targets must be set")
 	}
 
-	if len(p.config.KeepArtifact) == 0 {
-		p.config.KeepArtifact = "true"
+	if p.config.KeepArtifact == pkrconfig.TriUnset {
+		p.config.KeepArtifact = pkrconfig.TriTrue
 	}
 
 	return nil
@@ -111,10 +139,8 @@ func (p *PostProcessor) Configure(raws ...any) error {
 // controller by `copy_concurrency`.
 func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
 
-	keepArtifactBool, err := strconv.ParseBool(p.config.KeepArtifact)
-	if err != nil {
-		return artifact, keepArtifactBool, false, err
-	}
+	keepArtifactBool := p.config.KeepArtifact.True()
+	ui.Sayf("KeepArtifact: %t", keepArtifactBool)
 
 	// Ensure we're being called from a supported builder
 	switch artifact.BuilderId() {
@@ -126,7 +152,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		break
 	default:
 		return artifact, keepArtifactBool, false,
-			fmt.Errorf("Unexpected artifact type: %s\nCan only export from Amazon builders",
+			fmt.Errorf("unexpected artifact type: %s\nCan only export from Amazon builders",
 				artifact.BuilderId())
 	}
 
@@ -151,9 +177,6 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		if err != nil || source == nil {
 			return artifact, keepArtifactBool, false, err
 		}
-
-		ui.Sayf("Source Tags: %v", source.Tags)
-
 		// Create copy operations for each target
 		for _, tgt := range p.config.Targets {
 			targetCfg, err := tgt.GetAWSConfig(ctx)
@@ -161,7 +184,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 				ui.Error(err.Error())
 				continue
 			}
-			targetCfg.Region = ami.region
+
 			targetClient := ec2.NewFromConfig(*targetCfg)
 
 			// Attempt to resolve the target account ID via STS on the target credentials.
@@ -171,15 +194,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 				ui.Error(fmt.Sprintf("unable to resolve target account ID for target (skipping): %v", err))
 				continue
 			}
-			ui.Sayf("Resolved target ARN: %s", *targetId.Arn)
-
-			debugstsClient := sts.NewFromConfig(cfg)
-			debugclientId, err := debugstsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-			if err != nil {
-				ui.Error(fmt.Sprintf("unable to resolve target account ID for target (skipping): %v", err))
-				continue
-			}
-			ui.Sayf("Resolved source ARN: %s", *debugclientId.Arn)
+			// ui.Sayf("Resolved target ARN: %s", *targetId.Arn)
 
 			// Ensure that the source AMI is shared with the resolved target account
 			if err = helpers.EnsureImageSharedWith(ctx, source, targetId.Account, client); err != nil {
@@ -187,17 +202,19 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 				continue
 			}
 			copy := &copyOperation{
-				ctx:             ctx,
-				client:          targetClient,
-				sourceImage:     source,
-				sourceRegion:    ami.region,
-				sourceImageID:   ami.id,
-				ensureAvailable: p.config.EnsureAvailable,
-				tagsOnly:        p.config.TagsOnly,
-				tags:            p.config.AMITags,
-				encrypted:       p.config.AMIEncryptBootVolume.True(),
-				kmsKeyID:        p.config.AMIKmsKeyId,
-				targetAccountID: *targetId.Account,
+				ctx:                 ctx,
+				client:              targetClient,
+				sourceImage:         source,
+				sourceRegion:        ami.region,
+				sourceImageID:       ami.id,
+				ensureAvailable:     p.config.EnsureAvailable,
+				tagsOnly:            p.config.TagsOnly,
+				tags:                p.config.AMITags,
+				encrypted:           p.config.AMIEncryptBootVolume.True(),
+				kmsKeyID:            p.config.AMIKmsKeyId,
+				copyDurationMinutes: p.config.CopyDurationMinutes,
+				timeoutMinutes:      p.config.CopyTimeoutMinutes,
+				targetAccountID:     *targetId.Account,
 			}
 			copies = append(copies, copy)
 		}
@@ -221,22 +238,23 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 				targetClient = ec2.NewFromConfig(targetCfg)
 			} else {
 				cfg := awsCfg.Copy()
-				cfg.Region = ami.region
 				targetClient = ec2.NewFromConfig(cfg)
 			}
 
 			copy := &copyOperation{
-				ctx:             ctx,
-				client:          targetClient,
-				sourceImage:     source,
-				sourceRegion:    ami.region,
-				sourceImageID:   ami.id,
-				ensureAvailable: p.config.EnsureAvailable,
-				tagsOnly:        p.config.TagsOnly,
-				tags:            p.config.AMITags,
-				encrypted:       p.config.AMIEncryptBootVolume.True(),
-				kmsKeyID:        p.config.AMIKmsKeyId,
-				targetAccountID: user,
+				ctx:                 ctx,
+				client:              targetClient,
+				sourceImage:         source,
+				sourceRegion:        ami.region,
+				sourceImageID:       ami.id,
+				ensureAvailable:     p.config.EnsureAvailable,
+				tagsOnly:            p.config.TagsOnly,
+				tags:                p.config.AMITags,
+				encrypted:           p.config.AMIEncryptBootVolume.True(),
+				kmsKeyID:            p.config.AMIKmsKeyId,
+				copyDurationMinutes: p.config.CopyDurationMinutes,
+				timeoutMinutes:      p.config.CopyTimeoutMinutes,
+				targetAccountID:     user,
 			}
 			copies = append(copies, copy)
 		}
@@ -260,7 +278,7 @@ type ami struct {
 
 // amisFromArtifactID returns an AMI slice from a Packer artifact id.
 func amisFromArtifactID(artifactID string) (amis []*ami) {
-	for _, amiStr := range strings.Split(artifactID, ",") {
+	for amiStr := range strings.SplitSeq(artifactID, ",") {
 		pair := strings.SplitN(amiStr, ":", 2)
 		amis = append(amis, &ami{region: pair[0], id: pair[1]})
 	}

@@ -66,8 +66,10 @@ type FlatConfig struct {
 	DeregistrationProtection       *common.FlatDeregistrationProtectionOptions `mapstructure:"deregistration_protection" required:"false" cty:"deregistration_protection" hcl:"deregistration_protection"`
 	RoleName                       *string                                     `mapstructure:"role_name" cty:"role_name" hcl:"role_name"`
 	CopyConcurrency                *int                                        `mapstructure:"copy_concurrency" cty:"copy_concurrency" hcl:"copy_concurrency"`
+	CopyDurationMinutes            *int64                                      `mapstructure:"copy_duration_minutes" cty:"copy_duration_minutes" hcl:"copy_duration_minutes"`
+	CopyTimeoutMinutes             *int                                        `mapstructure:"copy_timeout_minutes" cty:"copy_timeout_minutes" hcl:"copy_timeout_minutes"`
 	EnsureAvailable                *bool                                       `mapstructure:"ensure_available" cty:"ensure_available" hcl:"ensure_available"`
-	KeepArtifact                   *string                                     `mapstructure:"keep_artifact" cty:"keep_artifact" hcl:"keep_artifact"`
+	KeepArtifact                   *bool                                       `mapstructure:"keep_artifact" cty:"keep_artifact" hcl:"keep_artifact"`
 	ManifestOutput                 *string                                     `mapstructure:"manifest_output" cty:"manifest_output" hcl:"manifest_output"`
 	TagsOnly                       *bool                                       `mapstructure:"tags_only" cty:"tags_only" hcl:"tags_only"`
 	Targets                        []FlatTarget                                `mapstructure:"targets" cty:"targets" hcl:"targets"`
@@ -139,8 +141,10 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"deregistration_protection":      &hcldec.BlockSpec{TypeName: "deregistration_protection", Nested: hcldec.ObjectSpec((*common.FlatDeregistrationProtectionOptions)(nil).HCL2Spec())},
 		"role_name":                      &hcldec.AttrSpec{Name: "role_name", Type: cty.String, Required: false},
 		"copy_concurrency":               &hcldec.AttrSpec{Name: "copy_concurrency", Type: cty.Number, Required: false},
+		"copy_duration_minutes":          &hcldec.AttrSpec{Name: "copy_duration_minutes", Type: cty.Number, Required: false},
+		"copy_timeout_minutes":           &hcldec.AttrSpec{Name: "copy_timeout_minutes", Type: cty.Number, Required: false},
 		"ensure_available":               &hcldec.AttrSpec{Name: "ensure_available", Type: cty.Bool, Required: false},
-		"keep_artifact":                  &hcldec.AttrSpec{Name: "keep_artifact", Type: cty.String, Required: false},
+		"keep_artifact":                  &hcldec.AttrSpec{Name: "keep_artifact", Type: cty.Bool, Required: false},
 		"manifest_output":                &hcldec.AttrSpec{Name: "manifest_output", Type: cty.String, Required: false},
 		"tags_only":                      &hcldec.AttrSpec{Name: "tags_only", Type: cty.Bool, Required: false},
 		"targets":                        &hcldec.BlockListSpec{TypeName: "targets", Nested: hcldec.ObjectSpec((*FlatTarget)(nil).HCL2Spec())},

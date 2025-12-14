@@ -25,18 +25,20 @@ type AmiManifest struct {
 
 // copyOperation holds data and methods related to copying an image.
 type copyOperation struct {
-	ctx             context.Context
-	client          *ec2.Client
-	sourceImage     *types.Image
-	sourceRegion    string
-	sourceImageID   string
-	copiedImageID   string
-	ensureAvailable bool
-	tagsOnly        bool
-	tags            map[string]string
-	encrypted       bool
-	kmsKeyID        string
-	targetAccountID string
+	ctx                 context.Context
+	client              *ec2.Client
+	sourceImage         *types.Image
+	sourceRegion        string
+	sourceImageID       string
+	copiedImageID       string
+	ensureAvailable     bool
+	tagsOnly            bool
+	tags                map[string]string
+	encrypted           bool
+	kmsKeyID            string
+	targetAccountID     string
+	copyDurationMinutes *int64
+	timeoutMinutes      *int
 }
 
 // execute performs the EC2 copy and tags the result.
@@ -52,11 +54,13 @@ func (c *copyOperation) execute(ui packer.Ui) error {
 	if !c.tagsOnly {
 		// Perform the copy
 		input := &ec2.CopyImageInput{
-			Name:          aws.String(name),
-			Description:   aws.String(description),
-			SourceImageId: aws.String(c.sourceImageID),
-			SourceRegion:  aws.String(c.sourceRegion),
-			Encrypted:     aws.Bool(c.encrypted),
+			Name:                                  aws.String(name),
+			Description:                           aws.String(description),
+			SourceImageId:                         aws.String(c.sourceImageID),
+			SourceRegion:                          aws.String(c.sourceRegion),
+			Encrypted:                             aws.Bool(c.encrypted),
+			CopyImageTags:                         aws.Bool(true),
+			SnapshotCopyCompletionDurationMinutes: c.copyDurationMinutes,
 		}
 
 		if c.kmsKeyID != "" {
@@ -90,16 +94,7 @@ func (c *copyOperation) execute(ui packer.Ui) error {
 
 // tagImage copies tags from the source image to the target.
 func (c *copyOperation) tagImage(ui packer.Ui) error {
-	tags := make([]types.Tag, 0, len(c.sourceImage.Tags)+len(c.tags))
-
-	// Copy source tags
-	for _, tag := range c.sourceImage.Tags {
-		tags = append(tags, types.Tag{
-			Key:   tag.Key,
-			Value: tag.Value,
-		})
-	}
-
+	tags := make([]types.Tag, 0, len(c.tags))
 	// Add additional tags
 	for k, v := range c.tags {
 		tags = append(tags, types.Tag{
@@ -112,7 +107,7 @@ func (c *copyOperation) tagImage(ui packer.Ui) error {
 		return nil
 	}
 
-	ui.Say(fmt.Sprintf("Adding tags %v", tags))
+	ui.Say(fmt.Sprintf("Adding tags [%s]", c.tags))
 
 	// Retry creating tags for about 2.5 minutes
 	return retry.Config{
@@ -138,27 +133,37 @@ func (c *copyOperation) tagImage(ui packer.Ui) error {
 
 // waitForAvailable waits for the copied image to become available.
 func (c *copyOperation) waitForAvailable(ui packer.Ui) error {
-	ui.Say("Going to wait for image to be in available state")
+	ui.Say("Waiting for image to be in available state")
 
-	for i := 1; i <= 30; i++ {
+	timeout := 60 // default to 60 minutes
+	if c.timeoutMinutes != nil {
+		timeout = *c.timeoutMinutes
+	}
+
+	var imageName string
+	for i := 1; i <= timeout; i++ {
 		image, err := helpers.LocateSingleAMI(c.ctx, c.copiedImageID, c.client)
 		if err != nil && image == nil {
 			return err
 		}
 
+		imageName = fmt.Sprintf("%s:%s:%s", *image.ImageLocation, *image.OwnerId, *image.ImageId)
+
 		switch image.State {
 		case types.ImageStateAvailable:
 			return nil
-		case types.ImageStateFailed:
-			return fmt.Errorf("AMI copy failed: image %s transitioned to failed state on account %s", *image.ImageId, c.targetAccountID)
+		case types.ImageStatePending:
+			// continue waiting
+		default:
+			return fmt.Errorf("AMI copy failed: image %s transitioned to %s state", imageName, image.State)
 		}
 
-		ui.Say(fmt.Sprintf("Waiting one minute (%d/30) for AMI to become available, current state: %s for image %s on account %s",
-			i, image.State, *image.ImageId, c.targetAccountID))
+		ui.Say(fmt.Sprintf("Waiting one minute (%d/%d) for AMI to become available, current state: %s for image %s",
+			i, timeout, image.State, imageName))
 		time.Sleep(time.Duration(1) * time.Minute)
 	}
 
-	return fmt.Errorf("Timed out waiting for image %s to copy to account %s", c.copiedImageID, c.targetAccountID)
+	return fmt.Errorf("timed out waiting for image %s", imageName)
 }
 
 // executeCopies runs all copy operations concurrently.
