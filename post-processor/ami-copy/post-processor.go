@@ -71,8 +71,8 @@ type Config struct {
 	//
 	// [Time-based copies for Amazon EBS snapshots and EBS-backed AMIs]: https://docs.aws.amazon.com/ebs/latest/userguide/time-based-copies.html
 	CopyDurationMinutes *int64 `mapstructure:"copy_duration_minutes"`
-	// Maximum time, in minutes, to wait for the copied AMI to become available. (default: 60)
-	CopyTimeoutMinutes *int `mapstructure:"copy_timeout_minutes"`
+	// Maximum time, in minutes, to wait for the copied AMI to become available. (default: 30)
+	CopyTimeoutMinutes int `mapstructure:"copy_timeout_minutes"`
 	// Wait for the copied AMI to become available before returning.
 	EnsureAvailable bool `mapstructure:"ensure_available"`
 	// remove the original generated AMI after copy

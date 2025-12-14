@@ -38,7 +38,7 @@ type copyOperation struct {
 	kmsKeyID            string
 	targetAccountID     string
 	copyDurationMinutes *int64
-	timeoutMinutes      *int
+	timeoutMinutes      int
 }
 
 // execute performs the EC2 copy and tags the result.
@@ -135,9 +135,9 @@ func (c *copyOperation) tagImage(ui packer.Ui) error {
 func (c *copyOperation) waitForAvailable(ui packer.Ui) error {
 	ui.Say("Waiting for image to be in available state")
 
-	timeout := 60 // default to 60 minutes
-	if c.timeoutMinutes != nil {
-		timeout = *c.timeoutMinutes
+	timeout := c.timeoutMinutes
+	if timeout == 0 {
+		timeout = 30 // Default to 30 minutes
 	}
 
 	var imageName string
@@ -147,7 +147,7 @@ func (c *copyOperation) waitForAvailable(ui packer.Ui) error {
 			return err
 		}
 
-		imageName = fmt.Sprintf("%s:%s:%s", *image.ImageLocation, *image.OwnerId, *image.ImageId)
+		imageName = fmt.Sprintf("%s:%s:%s", c.client.Options().Region, *image.OwnerId, *image.ImageId)
 
 		switch image.State {
 		case types.ImageStateAvailable:
