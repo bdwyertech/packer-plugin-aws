@@ -182,7 +182,7 @@ github.com/aws/aws-sdk-go-v2/internal/ini
 github.com/aws/aws-sdk-go-v2/internal/v4a
 github.com/aws/aws-sdk-go-v2/internal/v4a/internal/crypto
 github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4
-# github.com/aws/aws-sdk-go-v2/service/appstream v1.52.3
+# github.com/aws/aws-sdk-go-v2/service/appstream v1.53.0
 ## explicit; go 1.23
 github.com/aws/aws-sdk-go-v2/service/appstream
 github.com/aws/aws-sdk-go-v2/service/appstream/internal/endpoints
