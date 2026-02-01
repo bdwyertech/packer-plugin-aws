@@ -1,4 +1,4 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright IBM Corp. 2013, 2025
 // SPDX-License-Identifier: MPL-2.0
 
 // Package version helps plugin creators set and track the plugin version using
@@ -15,7 +15,7 @@ import (
 var GitCommit string
 
 // Package version helps plugin creators set and track the sdk version using
-var Version = "0.6.4"
+var Version = "0.6.5"
 
 // A pre-release marker for the version. If this is "" (empty string)
 // then it means that it is a final release. Otherwise, this is a pre-release
