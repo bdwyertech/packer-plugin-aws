@@ -47,6 +47,12 @@ Shares AppStream images with other AWS accounts and optionally copies them to ad
 
 [Full Post-Processor Documentation](docs/post-processors/appstream-share.mdx)
 
+### Post-Processor: `ami-copy`
+
+Copies AWS AMIs to other AWS accounts and/or regions. Useful for distributing AMIs across multiple accounts or creating regional copies for disaster recovery.
+
+[Full Post-Processor Documentation](docs/post-processors/ami-copy.mdx)
+
 ### Post-Processor: `ami-delete`
 
 Deletes AWS AMIs and their associated EBS snapshots. Useful for cleanup operations or removing temporary AMIs created during multi-step build processes.
