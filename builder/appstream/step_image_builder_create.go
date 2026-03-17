@@ -41,7 +41,8 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 		IamRoleArn:                  &s.config.IamRoleArn,
 		ImageName:                   &s.config.SourceImageName,
 		EnableDefaultInternetAccess: &s.config.EnableDefaultInternetAccess,
-		AppstreamAgentVersion:       &s.config.AppstreamAgentVersion,
+		// TODO: Figure out why this is throwing Image builder packer-03-17-26-21-18-UTC could not be launched from your image because the image does not support managed update.
+		// AppstreamAgentVersion:       &s.config.AppstreamAgentVersion,
 		DomainJoinInfo: &types.DomainJoinInfo{
 			DirectoryName:                       s.config.DirectoryName,
 			OrganizationalUnitDistinguishedName: s.config.OrganizationalUnitDistinguishedName,

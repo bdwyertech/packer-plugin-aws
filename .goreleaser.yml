@@ -3,6 +3,7 @@
 version: 2
 env:
   - CGO_ENABLED=0
+  - GOARM64=v8.2,lse,crypto
 before:
   hooks:
     # We strongly recommend running tests to catch any regression before release.
