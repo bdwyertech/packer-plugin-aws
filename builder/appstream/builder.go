@@ -106,10 +106,6 @@ func (b *Builder) Prepare(raws ...any) ([]string, []string, error) {
 	var warns []string
 	errs = packersdk.MultiErrorAppend(errs, b.config.AccessConfig.Prepare(&b.config.PackerConfig)...)
 
-	if b.config.AppstreamAgentVersion == "" {
-		b.config.AppstreamAgentVersion = "LATEST"
-	}
-
 	if es := b.config.Comm.Prepare(&b.config.ctx); len(es) > 0 {
 		errs = packersdk.MultiErrorAppend(errs, es...)
 	}

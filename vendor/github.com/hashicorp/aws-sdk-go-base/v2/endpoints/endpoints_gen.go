@@ -62,7 +62,7 @@ const (
 	CnNorth1RegionID     = "cn-north-1"     // China (Beijing)
 	CnNorthwest1RegionID = "cn-northwest-1" // China (Ningxia)
 	// AWS EUSC partition's Regions.
-	EuscDeEast1RegionID = "eusc-de-east-1" // EU (Germany)
+	EuscDeEast1RegionID = "eusc-de-east-1" // AWS European Sovereign Cloud (Germany)
 	// AWS ISO (US) partition's Regions.
 	UsIsoEast1RegionID = "us-iso-east-1" // US ISO East
 	UsIsoWest1RegionID = "us-iso-west-1" // US ISO WEST
@@ -564,9 +564,6 @@ var (
 				"elasticmapreduce": {
 					id: "elasticmapreduce",
 				},
-				"elastictranscoder": {
-					id: "elastictranscoder",
-				},
 				"email": {
 					id: "email",
 				},
@@ -584,9 +581,6 @@ var (
 				},
 				"events": {
 					id: "events",
-				},
-				"evidently": {
-					id: "evidently",
 				},
 				"finspace": {
 					id: "finspace",
@@ -674,9 +668,6 @@ var (
 				},
 				"iot": {
 					id: "iot",
-				},
-				"iotanalytics": {
-					id: "iotanalytics",
 				},
 				"iotevents": {
 					id: "iotevents",
@@ -861,6 +852,9 @@ var (
 				"notifications-contacts": {
 					id: "notifications-contacts",
 				},
+				"nova-act": {
+					id: "nova-act",
+				},
 				"oam": {
 					id: "oam",
 				},
@@ -881,6 +875,9 @@ var (
 				},
 				"participant.connect": {
 					id: "participant.connect",
+				},
+				"partnercentral-channel": {
+					id: "partnercentral-channel",
 				},
 				"personalize": {
 					id: "personalize",
@@ -1416,9 +1413,6 @@ var (
 				"iot": {
 					id: "iot",
 				},
-				"iotanalytics": {
-					id: "iotanalytics",
-				},
 				"iotevents": {
 					id: "iotevents",
 				},
@@ -1669,10 +1663,317 @@ var (
 			regions: map[string]Region{
 				EuscDeEast1RegionID: {
 					id:          EuscDeEast1RegionID,
-					description: "EU (Germany)",
+					description: "AWS European Sovereign Cloud (Germany)",
 				},
 			},
-			services: map[string]Service{},
+			services: map[string]Service{
+				"access-analyzer": {
+					id: "access-analyzer",
+				},
+				"acm": {
+					id: "acm",
+				},
+				"acm-pca": {
+					id: "acm-pca",
+				},
+				"agreement-marketplace": {
+					id: "agreement-marketplace",
+				},
+				"api.ecr": {
+					id: "api.ecr",
+				},
+				"api.pricing": {
+					id: "api.pricing",
+				},
+				"api.sagemaker": {
+					id: "api.sagemaker",
+				},
+				"appconfig": {
+					id: "appconfig",
+				},
+				"appconfigdata": {
+					id: "appconfigdata",
+				},
+				"application-autoscaling": {
+					id: "application-autoscaling",
+				},
+				"arc-zonal-shift": {
+					id: "arc-zonal-shift",
+				},
+				"athena": {
+					id: "athena",
+				},
+				"autoscaling": {
+					id: "autoscaling",
+				},
+				"backup": {
+					id: "backup",
+				},
+				"batch": {
+					id: "batch",
+				},
+				"bedrock": {
+					id: "bedrock",
+				},
+				"cloudcontrolapi": {
+					id: "cloudcontrolapi",
+				},
+				"cloudformation": {
+					id: "cloudformation",
+				},
+				"cloudtrail": {
+					id: "cloudtrail",
+				},
+				"codedeploy": {
+					id: "codedeploy",
+				},
+				"cognito-identity": {
+					id: "cognito-identity",
+				},
+				"cognito-idp": {
+					id: "cognito-idp",
+				},
+				"compute-optimizer": {
+					id: "compute-optimizer",
+				},
+				"config": {
+					id: "config",
+				},
+				"controltower": {
+					id: "controltower",
+				},
+				"cost-optimization-hub": {
+					id: "cost-optimization-hub",
+				},
+				"datasync": {
+					id: "datasync",
+				},
+				"datazone": {
+					id: "datazone",
+				},
+				"directconnect": {
+					id: "directconnect",
+				},
+				"dlm": {
+					id: "dlm",
+				},
+				"dms": {
+					id: "dms",
+				},
+				"ds": {
+					id: "ds",
+				},
+				"dynamodb": {
+					id: "dynamodb",
+				},
+				"ebs": {
+					id: "ebs",
+				},
+				"ec2": {
+					id: "ec2",
+				},
+				"ecs": {
+					id: "ecs",
+				},
+				"eks": {
+					id: "eks",
+				},
+				"eks-auth": {
+					id: "eks-auth",
+				},
+				"elasticache": {
+					id: "elasticache",
+				},
+				"elasticfilesystem": {
+					id: "elasticfilesystem",
+				},
+				"elasticloadbalancing": {
+					id: "elasticloadbalancing",
+				},
+				"elasticmapreduce": {
+					id: "elasticmapreduce",
+				},
+				"email": {
+					id: "email",
+				},
+				"entitlement.marketplace": {
+					id: "entitlement.marketplace",
+				},
+				"es": {
+					id: "es",
+				},
+				"events": {
+					id: "events",
+				},
+				"firehose": {
+					id: "firehose",
+				},
+				"fsx": {
+					id: "fsx",
+				},
+				"gameliftstreams": {
+					id: "gameliftstreams",
+				},
+				"glue": {
+					id: "glue",
+				},
+				"guardduty": {
+					id: "guardduty",
+				},
+				"health": {
+					id: "health",
+				},
+				"identitystore": {
+					id: "identitystore",
+				},
+				"internetmonitor": {
+					id: "internetmonitor",
+				},
+				"kafka": {
+					id: "kafka",
+				},
+				"kendra-ranking": {
+					id: "kendra-ranking",
+				},
+				"kinesis": {
+					id: "kinesis",
+				},
+				"kinesisanalytics": {
+					id: "kinesisanalytics",
+				},
+				"kms": {
+					id: "kms",
+				},
+				"lakeformation": {
+					id: "lakeformation",
+				},
+				"lambda": {
+					id: "lambda",
+				},
+				"license-manager": {
+					id: "license-manager",
+				},
+				"logs": {
+					id: "logs",
+				},
+				"metering.marketplace": {
+					id: "metering.marketplace",
+				},
+				"metrics.sagemaker": {
+					id: "metrics.sagemaker",
+				},
+				"monitoring": {
+					id: "monitoring",
+				},
+				"notifications": {
+					id: "notifications",
+				},
+				"oam": {
+					id: "oam",
+				},
+				"pi": {
+					id: "pi",
+				},
+				"qbusiness": {
+					id: "qbusiness",
+				},
+				"ram": {
+					id: "ram",
+				},
+				"rbin": {
+					id: "rbin",
+				},
+				"rds": {
+					id: "rds",
+				},
+				"redshift": {
+					id: "redshift",
+				},
+				"resource-groups": {
+					id: "resource-groups",
+				},
+				"rolesanywhere": {
+					id: "rolesanywhere",
+				},
+				"route53profiles": {
+					id: "route53profiles",
+				},
+				"route53resolver": {
+					id: "route53resolver",
+				},
+				"runtime.sagemaker": {
+					id: "runtime.sagemaker",
+				},
+				"s3": {
+					id: "s3",
+				},
+				"s3-control": {
+					id: "s3-control",
+				},
+				"scheduler": {
+					id: "scheduler",
+				},
+				"secretsmanager": {
+					id: "secretsmanager",
+				},
+				"securityhub": {
+					id: "securityhub",
+				},
+				"servicediscovery": {
+					id: "servicediscovery",
+				},
+				"servicequotas": {
+					id: "servicequotas",
+				},
+				"signer": {
+					id: "signer",
+				},
+				"sms-voice": {
+					id: "sms-voice",
+				},
+				"sns": {
+					id: "sns",
+				},
+				"sqs": {
+					id: "sqs",
+				},
+				"ssm": {
+					id: "ssm",
+				},
+				"states": {
+					id: "states",
+				},
+				"storagegateway": {
+					id: "storagegateway",
+				},
+				"streams.dynamodb": {
+					id: "streams.dynamodb",
+				},
+				"sts": {
+					id: "sts",
+				},
+				"swf": {
+					id: "swf",
+				},
+				"synthetics": {
+					id: "synthetics",
+				},
+				"tagging": {
+					id: "tagging",
+				},
+				"transfer": {
+					id: "transfer",
+				},
+				"trustedadvisor": {
+					id: "trustedadvisor",
+				},
+				"wafv2": {
+					id: "wafv2",
+				},
+				"xray": {
+					id: "xray",
+				},
+			},
 		},
 		AwsIsoPartitionID: {
 			id:          AwsIsoPartitionID,
@@ -2008,6 +2309,9 @@ var (
 				},
 			},
 			services: map[string]Service{
+				"agreement-marketplace": {
+					id: "agreement-marketplace",
+				},
 				"api.ecr": {
 					id: "api.ecr",
 				},
@@ -2029,6 +2333,9 @@ var (
 				"application-autoscaling": {
 					id: "application-autoscaling",
 				},
+				"appstream2": {
+					id: "appstream2",
+				},
 				"arc-zonal-shift": {
 					id: "arc-zonal-shift",
 				},
@@ -2043,6 +2350,9 @@ var (
 				},
 				"batch": {
 					id: "batch",
+				},
+				"bedrock": {
+					id: "bedrock",
 				},
 				"budgets": {
 					id: "budgets",
@@ -2559,6 +2869,9 @@ var (
 				"acm-pca": {
 					id: "acm-pca",
 				},
+				"agreement-marketplace": {
+					id: "agreement-marketplace",
+				},
 				"api.ecr": {
 					id: "api.ecr",
 				},
@@ -2591,6 +2904,9 @@ var (
 				},
 				"batch": {
 					id: "batch",
+				},
+				"bedrock": {
+					id: "bedrock",
 				},
 				"budgets": {
 					id: "budgets",
@@ -2691,6 +3007,9 @@ var (
 				"iam": {
 					id: "iam",
 				},
+				"identitystore": {
+					id: "identitystore",
+				},
 				"kinesis": {
 					id: "kinesis",
 				},
@@ -2750,6 +3069,9 @@ var (
 				},
 				"resource-groups": {
 					id: "resource-groups",
+				},
+				"rolesanywhere": {
+					id: "rolesanywhere",
 				},
 				"route53": {
 					id: "route53",
@@ -3081,6 +3403,9 @@ var (
 				"glue": {
 					id: "glue",
 				},
+				"grafana": {
+					id: "grafana",
+				},
 				"greengrass": {
 					id: "greengrass",
 				},
@@ -3128,6 +3453,9 @@ var (
 				},
 				"kafka": {
 					id: "kafka",
+				},
+				"kafkaconnect": {
+					id: "kafkaconnect",
 				},
 				"kendra": {
 					id: "kendra",

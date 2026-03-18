@@ -32,14 +32,14 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 	}
 
 	ui.Say("Launching an AppStream ImageBuilder...")
-
-	cfg := &appstream.CreateImageBuilderInput{
+	out, err := svc.CreateImageBuilder(ctx, &appstream.CreateImageBuilderInput{
 		Name:                        &s.config.BuilderName,
 		Description:                 &s.config.Description,
 		DisplayName:                 &s.config.DisplayName,
 		InstanceType:                &s.config.InstanceType,
 		IamRoleArn:                  &s.config.IamRoleArn,
 		ImageName:                   &s.config.SourceImageName,
+		AppstreamAgentVersion:       &s.config.AppstreamAgentVersion,
 		EnableDefaultInternetAccess: &s.config.EnableDefaultInternetAccess,
 		DomainJoinInfo: &types.DomainJoinInfo{
 			DirectoryName:                       s.config.DirectoryName,
@@ -49,17 +49,11 @@ func (s *StepImageBuilderCreate) Run(ctx context.Context, state multistep.StateB
 			SecurityGroupIds: s.config.SecurityGroupIds,
 			SubnetIds:        s.config.SubnetIds,
 		},
-		Tags:                 s.config.BuilderTags,
+		Tags: s.config.BuilderTags,
+
 		SoftwaresToInstall:   s.config.SoftwaresToInstall,
 		SoftwaresToUninstall: s.config.SoftwaresToUninstall,
-	}
-	// This seems to throw an error if you pass anything sometimes, even a blank string.
-	// TODO: Figure out why this is throwing Image builder packer-03-17-26-21-18-UTC could not be launched from your image because the image does not support managed update.
-	if s.config.AppstreamAgentVersion != "" {
-		cfg.AppstreamAgentVersion = &s.config.AppstreamAgentVersion
-	}
-
-	out, err := svc.CreateImageBuilder(ctx, cfg)
+	})
 	if err != nil {
 		state.Put("error", err)
 		return multistep.ActionHalt
