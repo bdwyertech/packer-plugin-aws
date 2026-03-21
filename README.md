@@ -3,7 +3,7 @@
 This plugin provides Packer components for working with AWS services:
 - **AppStream 2.0 Builder**: Create AppStream images using Image Builder instances
 - **AppStream 2.0 Data Sources**: Query existing Images & Image Builder instances.
-- **EC2 Data Sources**: Query VPC subnets and other EC2 resources
+- **EC2 Data Sources**: Query VPC subnets and other EC2 resources in a fashion similar to Terraform
 - **AppStream 2.0 Post-Processor**: Share and copy AppStream images across accounts and regions
 - **AMI Post-Processor**: Delete AMIs and their associated EBS snapshots
 
