@@ -50,6 +50,27 @@ func (Action) Values() []Action {
 	}
 }
 
+type AgentAction string
+
+// Enum values for AgentAction
+const (
+	AgentActionComputerVision  AgentAction = "COMPUTER_VISION"
+	AgentActionComputerInput   AgentAction = "COMPUTER_INPUT"
+	AgentActionForwardMcpTools AgentAction = "FORWARD_MCP_TOOLS"
+)
+
+// Values returns all known values for AgentAction. Note that this can be expanded
+// in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (AgentAction) Values() []AgentAction {
+	return []AgentAction{
+		"COMPUTER_VISION",
+		"COMPUTER_INPUT",
+		"FORWARD_MCP_TOOLS",
+	}
+}
+
 type AgentSoftwareVersion string
 
 // Enum values for AgentSoftwareVersion
@@ -275,6 +296,7 @@ const (
 	ExportImageTaskStateExporting ExportImageTaskState = "EXPORTING"
 	ExportImageTaskStateCompleted ExportImageTaskState = "COMPLETED"
 	ExportImageTaskStateFailed    ExportImageTaskState = "FAILED"
+	ExportImageTaskStateTimedOut  ExportImageTaskState = "TIMED_OUT"
 )
 
 // Values returns all known values for ExportImageTaskState. Note that this can be
@@ -286,6 +308,7 @@ func (ExportImageTaskState) Values() []ExportImageTaskState {
 		"EXPORTING",
 		"COMPLETED",
 		"FAILED",
+		"TIMED_OUT",
 	}
 }
 
@@ -585,6 +608,7 @@ type ImageType string
 const (
 	ImageTypeCustom ImageType = "CUSTOM"
 	ImageTypeNative ImageType = "NATIVE"
+	ImageTypeByol   ImageType = "BYOL"
 )
 
 // Values returns all known values for ImageType. Note that this can be expanded
@@ -595,6 +619,28 @@ func (ImageType) Values() []ImageType {
 	return []ImageType{
 		"CUSTOM",
 		"NATIVE",
+		"BYOL",
+	}
+}
+
+type InstanceDrainStatus string
+
+// Enum values for InstanceDrainStatus
+const (
+	InstanceDrainStatusActive        InstanceDrainStatus = "ACTIVE"
+	InstanceDrainStatusDraining      InstanceDrainStatus = "DRAINING"
+	InstanceDrainStatusNotApplicable InstanceDrainStatus = "NOT_APPLICABLE"
+)
+
+// Values returns all known values for InstanceDrainStatus. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (InstanceDrainStatus) Values() []InstanceDrainStatus {
+	return []InstanceDrainStatus{
+		"ACTIVE",
+		"DRAINING",
+		"NOT_APPLICABLE",
 	}
 }
 
@@ -726,6 +772,42 @@ func (PreferredProtocol) Values() []PreferredProtocol {
 	}
 }
 
+type ScreenImageFormat string
+
+// Enum values for ScreenImageFormat
+const (
+	ScreenImageFormatPng  ScreenImageFormat = "PNG"
+	ScreenImageFormatJpeg ScreenImageFormat = "JPEG"
+)
+
+// Values returns all known values for ScreenImageFormat. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (ScreenImageFormat) Values() []ScreenImageFormat {
+	return []ScreenImageFormat{
+		"PNG",
+		"JPEG",
+	}
+}
+
+type ScreenResolution string
+
+// Enum values for ScreenResolution
+const (
+	ScreenResolutionW1280xH720 ScreenResolution = "W_1280xH_720"
+)
+
+// Values returns all known values for ScreenResolution. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (ScreenResolution) Values() []ScreenResolution {
+	return []ScreenResolution{
+		"W_1280xH_720",
+	}
+}
+
 type SessionConnectionState string
 
 // Enum values for SessionConnectionState
@@ -811,6 +893,8 @@ const (
 	StackAttributeIamRoleArn                  StackAttribute = "IAM_ROLE_ARN"
 	StackAttributeAccessEndpoints             StackAttribute = "ACCESS_ENDPOINTS"
 	StackAttributeStreamingExperienceSettings StackAttribute = "STREAMING_EXPERIENCE_SETTINGS"
+	StackAttributeContentRedirection          StackAttribute = "CONTENT_REDIRECTION"
+	StackAttributeAgentAccessConfig           StackAttribute = "AGENT_ACCESS_CONFIG"
 )
 
 // Values returns all known values for StackAttribute. Note that this can be
@@ -831,6 +915,8 @@ func (StackAttribute) Values() []StackAttribute {
 		"IAM_ROLE_ARN",
 		"ACCESS_ENDPOINTS",
 		"STREAMING_EXPERIENCE_SETTINGS",
+		"CONTENT_REDIRECTION",
+		"AGENT_ACCESS_CONFIG",
 	}
 }
 
@@ -988,6 +1074,27 @@ const (
 func (UsageReportSchedule) Values() []UsageReportSchedule {
 	return []UsageReportSchedule{
 		"DAILY",
+	}
+}
+
+type UserControlMode string
+
+// Enum values for UserControlMode
+const (
+	UserControlModeViewOnly UserControlMode = "VIEW_ONLY"
+	UserControlModeViewStop UserControlMode = "VIEW_STOP"
+	UserControlModeDisabled UserControlMode = "DISABLED"
+)
+
+// Values returns all known values for UserControlMode. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (UserControlMode) Values() []UserControlMode {
+	return []UserControlMode{
+		"VIEW_ONLY",
+		"VIEW_STOP",
+		"DISABLED",
 	}
 }
 

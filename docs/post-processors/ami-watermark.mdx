@@ -1,0 +1,128 @@
+Type: `ami-watermark`
+
+The `ami-watermark` post-processor attaches AWS AMI watermarks to private AMIs produced by Amazon builders during a Packer build. Watermarks are structured identifiers for AMI provenance tracking that persist across AMI copies, instance launches, and sharing operations.
+
+This is ideal for golden image pipelines where a central team builds and watermarks AMIs, then shares them to application teams. The watermark propagates permanently to all derivative images.
+
+## Configuration Reference
+
+### Required
+
+- `watermark_names` ([]string) - A list of 1 to 5 watermark names to attach to each AMI. Each name must be 3–128 characters and contain only alphanumeric characters, parentheses, square brackets, spaces, periods, slashes, dashes, single quotes, at-signs, or underscores.
+
+### Optional
+
+In addition to the above, the following standard AWS authentication fields are supported:
+
+- `access_key` (string) - AWS access key
+- `secret_key` (string) - AWS secret key
+- `region` (string) - AWS region
+- `profile` (string) - AWS shared credentials profile
+- `assume_role` (block) - IAM role to assume
+
+See the [shared AWS authentication documentation](/docs/builders/amazon#authentication) for full details.
+
+## IAM Permissions
+
+The credentials used must have the `ec2:AttachImageWatermark` permission on the target AMIs.
+
+Minimal IAM policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ec2:AttachImageWatermark",
+      "Resource": "arn:aws:ec2:*::image/*"
+    }
+  ]
+}
+```
+
+## Example Usage
+
+### Single Watermark
+
+```hcl
+post-processor "aws-ami-watermark" {
+  watermark_names = ["my-org/golden-image"]
+}
+```
+
+### Multiple Watermarks
+
+```hcl
+post-processor "aws-ami-watermark" {
+  watermark_names = [
+    "my-org/golden-image",
+    "compliance/cis-hardened"
+  ]
+}
+```
+
+### Chaining with ami-copy
+
+Watermarks propagate through CopyImage automatically. Place `ami-watermark` before `ami-copy` to ensure all downstream copies inherit provenance.
+
+```hcl
+build {
+  sources = ["source.amazon-ebs.base"]
+
+  post-processor "aws-ami-watermark" {
+    watermark_names = ["central-team/approved"]
+  }
+
+  post-processor "aws-ami-copy" {
+    ami_users = ["111111111111", "222222222222"]
+  }
+}
+```
+
+### Golden Image Pipeline
+
+```hcl
+build {
+  sources = ["source.amazon-ebs.golden"]
+
+  post-processor "aws-ami-watermark" {
+    watermark_names = [
+      "platform-team/golden-base",
+      "security/cis-level1"
+    ]
+  }
+
+  post-processor "aws-ami-copy" {
+    ami_users       = ["333333333333"]
+    ensure_available = true
+  }
+}
+```
+
+## How It Works
+
+1. Validates builder compatibility (ebs, ebssurrogate, ebsvolume, chroot, instance)
+2. Parses AMI IDs from the upstream artifact
+3. For each region/AMI pair, creates a regional EC2 client
+4. Calls `AttachImageWatermark` for each configured watermark name
+5. Logs the returned watermark key (`accountId:watermarkName`)
+6. Passes the original artifact through unchanged to downstream post-processors
+
+## Watermark Propagation
+
+Watermarks automatically propagate through:
+- `CreateImage`
+- `CopyImage`
+- `CreateRestoreImageTask`
+
+Only the AMI owner can attach or detach watermarks. Downstream consumers who receive a shared AMI via launch permissions cannot remove the watermark from the source or from derivatives they create.
+
+## Notes
+
+- Watermarks cannot be attached to public AMIs
+- Only the AMI owner can attach or detach watermarks
+- Downstream accounts receiving a shared AMI cannot remove inherited watermarks
+- Watermark key format is `accountId:watermarkName`
+- Maximum 5 watermarks per AMI
+- If any watermark attachment fails, processing halts immediately (fail-fast)

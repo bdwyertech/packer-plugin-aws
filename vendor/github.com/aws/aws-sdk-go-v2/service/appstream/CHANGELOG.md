@@ -1,3 +1,69 @@
+# v1.61.0 (2026-06-19)
+
+* **Feature**: Amazon WorkSpaces Agent Access now supports domain-joined fleets for enterprise identity integration, real-time agent observation with instant stop controls, and MCP tool forwarding for lower-latency, cost-effective desktop tool access.
+
+# v1.60.5 (2026-06-08)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.60.4 (2026-06-04)
+
+* **Dependency Update**: Update to smithy-go v1.27.1 to fix several union-related deserialization bugs in schema-serde-enabled services.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.60.3 (2026-06-03)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.60.2 (2026-06-02)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.60.1 (2026-05-29)
+
+* **Dependency Update**: Update to smithy-go v1.26.0.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.60.0 (2026-05-28)
+
+* **Feature**: Amazon WorkSpaces Applications now supports BYOL (Bring Your Own License). This enables customers to import their own WorkSpaces images and use them in WorkSpaces Applications.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.59.0 (2026-05-21)
+
+* **Feature**: Adding new BDD representation of endpoint ruleset
+
+# v1.58.0 (2026-05-01)
+
+* **Feature**: Amazon WorkSpaces Applications now enables AI agents to securely operate desktop applications. Administrators configure stacks to provide agents access to WorkSpaces. Agents can click, type, and take screenshots. Agents authenticate with AWS IAM credentials with activity logged in AWS CloudTrail.
+
+# v1.57.2 (2026-04-29)
+
+* **Dependency Update**: Update to smithy-go v1.25.1.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.57.1 (2026-04-17)
+
+* **Dependency Update**: Bump smithy-go to 1.25.0 to support endpointBdd trait
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.57.0 (2026-04-16)
+
+* **Feature**: Add content redirection to Update Stack
+
+# v1.56.0 (2026-04-02)
+
+* **Feature**: Amazon WorkSpaces Applications now supports drain mode for instances in multi-session fleets. This capability allows administrators to instruct individual fleet instances to stop accepting new user sessions while allowing existing sessions to continue uninterrupted.
+
+# v1.55.0 (2026-03-30)
+
+* **Feature**: Add support for URL Redirection
+
+# v1.54.4 (2026-03-26)
+
+* **Bug Fix**: Fix a bug where a recorded clock skew could persist on the client even if the client and server clock ended up realigning.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.54.3 (2026-03-13)
 
 * **Dependency Update**: Updated to the latest SDK module versions

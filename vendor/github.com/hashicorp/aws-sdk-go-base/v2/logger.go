@@ -1,4 +1,4 @@
-// Copyright IBM Corp. 2015, 2025
+// Copyright IBM Corp. 2015, 2026
 // SPDX-License-Identifier: MPL-2.0
 
 package awsbase
@@ -78,9 +78,8 @@ func (l *logAttributeExtractor) HandleInitialize(ctx context.Context, in middlew
 
 	attributes := []attribute.KeyValue{
 		otelaws.SystemAttr(),
-		otelaws.ServiceAttr(serviceID),
+		otelaws.MethodAttr(serviceID, awsmiddleware.GetOperationName(ctx)),
 		otelaws.RegionAttr(region),
-		otelaws.OperationAttr(awsmiddleware.GetOperationName(ctx)),
 		awsSDKv2Attr(),
 	}
 
