@@ -151,12 +151,12 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 
 		for _, watermarkName := range p.config.WatermarkNames {
 			ui.Sayf("Attaching watermark %q to %s in %s", watermarkName, ami.id, ami.region)
-
 			resp, err := client.AttachImageWatermark(ctx, &ec2.AttachImageWatermarkInput{
 				ImageId:       &ami.id,
 				WatermarkName: &watermarkName,
 			})
 			if err != nil {
+				ui.Error(err.Error())
 				return artifact, true, false, fmt.Errorf(
 					"error attaching watermark %q to AMI %s in %s: %w",
 					watermarkName, ami.id, ami.region, err,
