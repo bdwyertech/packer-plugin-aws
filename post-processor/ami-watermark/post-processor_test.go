@@ -284,7 +284,9 @@ func TestAmisFromArtifactID_EmptyInput(t *testing.T) {
 //
 // The artifact ID is empty so amisFromArtifactID returns nil (after the prereq
 // fix), the watermark loop is a no-op, and PostProcess reaches the success
-// return at line 179 without making any AWS calls.
+// return at line 179 without making any AWS calls. Static fake credentials are
+// supplied so GetAWSConfig short-circuits without falling back to IMDS — which
+// would otherwise hang in CI environments with no AWS metadata service.
 func TestPostProcess_KeepInputArtifactFalseOnSuccess(t *testing.T) {
 	artifact := &mockArtifact{
 		builderId: "mitchellh.amazonebs", // ebs.BuilderId
@@ -296,6 +298,8 @@ func TestPostProcess_KeepInputArtifactFalseOnSuccess(t *testing.T) {
 		"watermark_names":            []string{"test-watermark"},
 		"skip_credential_validation": true,
 		"region":                     "us-east-1",
+		"access_key":                 "AKIAIOSFODNN7EXAMPLE",
+		"secret_key":                 "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
 	}); err != nil {
 		t.Fatalf("Configure failed: %v", err)
 	}

@@ -96,6 +96,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		return artifact, false, false, err
 	}
 
+	deletedAmis := make(map[string][]string)
 	amis := amisFromArtifactID(artifact.Id())
 	for _, ami := range amis {
 		var img *types.Image
@@ -111,6 +112,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		}); err != nil {
 			return artifact, false, false, err
 		}
+		deletedAmis[ami.region] = append(deletedAmis[ami.region], ami.id)
 		for _, bdm := range img.BlockDeviceMappings {
 			if bdm.Ebs != nil && bdm.Ebs.SnapshotId != nil {
 				ui.Sayf("Deleting %s", *bdm.Ebs.SnapshotId)
@@ -123,7 +125,11 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		}
 	}
 
-	return artifact, true, true, nil
+	return &Artifact{
+		DeletedAmis:    deletedAmis,
+		BuilderIdValue: BuilderId,
+		StateData:      make(map[string]any),
+	}, true, true, nil
 }
 
 // ami encapsulates simplistic details about an AMI.

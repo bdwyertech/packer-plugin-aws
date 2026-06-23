@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -246,6 +245,3 @@ func TestExecuteCopies_SameRegion_StillReportsRegion(t *testing.T) {
 		t.Errorf("expected log output to reference destination us-east-1:000000000000, got:\n%s", out)
 	}
 }
-
-// _ keeps io imported even when other helpers below don't reference it.
-var _ = io.Discard
