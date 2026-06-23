@@ -1,0 +1,69 @@
+Type: `ami-copy`
+
+The `ami-copy` post-processor copies AWS AMIs to other AWS accounts and/or regions. This is useful for distributing AMIs across multiple accounts or creating regional copies for disaster recovery.
+
+## Configuration Reference
+
+### Required
+
+- `ami_users` ([]string) - List of AWS account IDs to share the AMI with, or
+- `targets` ([]Target) - List of target configurations with account-specific settings
+
+### Optional
+
+- `role_name` (string) - IAM role name to assume in target accounts
+
+- `copy_concurrency` (int) - Limit the number of copies executed in parallel (default: unlimited)
+
+- `copy_duration_minutes` (int64) - Specify a completion duration, in 15 minute increments, to initiate a time-based AMI copy. Not supported for Local Zones or Outposts. See [AWS documentation](https://docs.aws.amazon.com/ebs/latest/userguide/time-based-copies.html)
+
+- `copy_timeout_minutes` (int) - Maximum time, in minutes, to wait for the copied AMI to become available (default: 30)
+
+- `ensure_available` (bool) - Wait for the copied AMI to become available before returning
+
+- `keep_artifact` (bool) - Keep the original AMI after copying (default: true)
+
+- `manifest_output` (string) - Path to output AMI IDs in JSON format
+
+- `tags_only` (bool) - Only duplicate tags on shared AMIs without copying (default: false)
+
+- `encrypt_boot` (bool) - Encrypt the copied AMI
+
+- `kms_key_id` (string) - KMS key ID to use for encryption
+
+## Example Usage
+
+### Basic Cross-Account Copy
+
+```hcl
+post-processor "aws-ami-copy" {
+  ami_users = ["123456789012", "987654321098"]
+  region    = "us-east-1"
+}
+```
+
+### Multi-Region Copy with Encryption
+
+```hcl
+post-processor "aws-ami-copy" {
+  ami_users    = ["123456789012"]
+  ami_regions  = ["us-west-2", "eu-central-1"]
+  encrypt_boot = true
+  kms_key_id   = "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+}
+```
+
+### Advanced with Role Assumption
+
+```hcl
+post-processor "aws-ami-copy" {
+  targets = [
+    {
+      region    = "us-east-1"
+      role_arn  = "arn:aws:iam::123456789012:role/AMICopyRole"
+    }
+  ]
+  ensure_available = true
+  manifest_output  = "ami-manifest.json"
+}
+```

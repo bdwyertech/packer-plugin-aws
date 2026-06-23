@@ -1,9 +1,12 @@
 package ami_copy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,7 +19,7 @@ func TestPostProcessor_ImplementsPostProcessor(t *testing.T) {
 }
 
 func TestPostProcessor_Impl(t *testing.T) {
-	var raw interface{}
+	var raw any
 	raw = &PostProcessor{}
 	if _, ok := raw.(packersdk.PostProcessor); !ok {
 		t.Fatalf("must be a post processor")
@@ -96,7 +99,7 @@ func TestExecuteCopies_TagsOnly_NoClientNeeded(t *testing.T) {
 		},
 	}
 
-	errs := p.executeCopies([]*copyOperation{c}, ui)
+	_, errs := p.executeCopies([]*copyOperation{c}, ui)
 	if len(errs.Errors) != 0 {
 		t.Fatalf("expected no errors from executeCopies, got: %v", errs)
 	}
@@ -132,3 +135,113 @@ func TestCopyExecute_SetsCopiedImageWhenTagsOnly(t *testing.T) {
 		t.Fatalf("expected copiedImageID 'ami-foo', got %q", c.copiedImageID)
 	}
 }
+
+// capturingUi captures everything written through the Ui so tests can assert
+// against log output.
+func capturingUi() (*packersdk.BasicUi, *bytes.Buffer) {
+	buf := &bytes.Buffer{}
+	return &packersdk.BasicUi{
+		Reader:      &bytes.Buffer{},
+		Writer:      buf,
+		ErrorWriter: buf,
+		PB:          &packersdk.NoopProgressTracker{},
+	}, buf
+}
+
+// TestExecuteCopies_CrossRegion_ReportsTargetRegion covers B1 and B2: when a
+// copyOperation is run with sourceRegion != targetRegion, the resulting
+// AmiManifest must record the target region and log lines must reference the
+// target region — not the source region.
+func TestExecuteCopies_CrossRegion_ReportsTargetRegion(t *testing.T) {
+	ui, buf := capturingUi()
+
+	srcImage := &types.Image{
+		ImageId: aws.String("ami-src"),
+		Tags:    []types.Tag{},
+	}
+
+	c := &copyOperation{
+		ctx:             context.Background(),
+		client:          nil,
+		sourceImage:     srcImage,
+		sourceRegion:    "us-east-1",
+		targetRegion:    "us-west-1",
+		sourceImageID:   "ami-src",
+		ensureAvailable: false,
+		tagsOnly:        true,
+		tags:            map[string]string{},
+		encrypted:       false,
+		targetAccountID: "000000000000",
+	}
+
+	p := PostProcessor{
+		config: Config{
+			CopyConcurrency: 1,
+			ManifestOutput:  "",
+		},
+	}
+
+	manifests, errs := p.executeCopies([]*copyOperation{c}, ui)
+	if len(errs.Errors) != 0 {
+		t.Fatalf("expected no errors from executeCopies, got: %v", errs)
+	}
+
+	if len(manifests) != 1 {
+		t.Fatalf("expected exactly 1 manifest, got %d", len(manifests))
+	}
+
+	// B1: AmiManifest.Region must be the target region.
+	if manifests[0].Region != "us-west-1" {
+		t.Errorf("B1: expected AmiManifest.Region=us-west-1, got %q", manifests[0].Region)
+	}
+
+	// B2: log output must reference [us-west-1] for both the start and finish
+	// messages, and must not attribute the copy to [us-east-1].
+	out := buf.String()
+	if !strings.Contains(out, "[us-west-1]") {
+		t.Errorf("B2: expected log output to contain [us-west-1], got:\n%s", out)
+	}
+	if strings.Contains(out, "[us-east-1]") {
+		t.Errorf("B2: log output must not contain [us-east-1] for a cross-region copy, got:\n%s", out)
+	}
+}
+
+// TestExecuteCopies_SameRegion_StillReportsRegion is the regression guard for
+// the existing same-region path: when sourceRegion == targetRegion, reporting
+// continues to use that region.
+func TestExecuteCopies_SameRegion_StillReportsRegion(t *testing.T) {
+	ui, buf := capturingUi()
+
+	srcImage := &types.Image{
+		ImageId: aws.String("ami-src"),
+		Tags:    []types.Tag{},
+	}
+
+	c := &copyOperation{
+		ctx:             context.Background(),
+		client:          nil,
+		sourceImage:     srcImage,
+		sourceRegion:    "us-east-1",
+		targetRegion:    "us-east-1",
+		sourceImageID:   "ami-src",
+		tagsOnly:        true,
+		tags:            map[string]string{},
+		targetAccountID: "000000000000",
+	}
+
+	p := PostProcessor{config: Config{CopyConcurrency: 1}}
+
+	manifests, errs := p.executeCopies([]*copyOperation{c}, ui)
+	if len(errs.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(manifests) != 1 || manifests[0].Region != "us-east-1" {
+		t.Fatalf("expected single manifest with Region=us-east-1, got %+v", manifests)
+	}
+	if !strings.Contains(buf.String(), "[us-east-1]") {
+		t.Errorf("expected log output to contain [us-east-1], got:\n%s", buf.String())
+	}
+}
+
+// _ keeps io imported even when other helpers below don't reference it.
+var _ = io.Discard

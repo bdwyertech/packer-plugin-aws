@@ -168,7 +168,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 	}
 
 	// Pass through original artifact
-	return artifact, true, false, nil
+	return artifact, false, false, nil
 }
 
 // ami encapsulates simplistic details about an AMI.
@@ -178,6 +178,9 @@ type ami struct {
 
 // amisFromArtifactID returns an AMI slice from a Packer artifact id.
 func amisFromArtifactID(artifactID string) []*ami {
+	if artifactID == "" {
+		return nil
+	}
 	var amis []*ami
 	for amiStr := range strings.SplitSeq(artifactID, ",") {
 		pair := strings.SplitN(amiStr, ":", 2)

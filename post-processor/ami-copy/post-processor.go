@@ -14,16 +14,9 @@ import (
 	"github.com/hashicorp/hcl/v2/hcldec"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-
-	"github.com/hashicorp/packer-plugin-amazon/builder/chroot"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebs"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume"
-	"github.com/hashicorp/packer-plugin-amazon/builder/instance"
 
 	"github.com/hashicorp/packer-plugin-sdk/common"
 	"github.com/hashicorp/packer-plugin-sdk/packer"
@@ -32,7 +25,12 @@ import (
 
 	"github.com/bdwyertech/packer-plugin-aws/helpers"
 
+	"github.com/hashicorp/packer-plugin-amazon/builder/chroot"
 	awscommon "github.com/hashicorp/packer-plugin-amazon/builder/common"
+	"github.com/hashicorp/packer-plugin-amazon/builder/ebs"
+	"github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate"
+	"github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume"
+	"github.com/hashicorp/packer-plugin-amazon/builder/instance"
 )
 
 // BuilderId is the ID of this post processor.
@@ -90,7 +88,6 @@ type Config struct {
 
 type Target struct {
 	awscommon.AccessConfig `mapstructure:",squash"`
-	Name                   string `mapstructure:"name"`
 }
 
 // PostProcessor implements Packer's PostProcessor interface.
@@ -138,9 +135,7 @@ func (p *PostProcessor) Configure(raws ...any) error {
 // Copies are executed concurrently. This concurrency is unlimited unless
 // controller by `copy_concurrency`.
 func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
-
 	keepArtifactBool := p.config.KeepArtifact.True()
-	ui.Sayf("KeepArtifact: %t", keepArtifactBool)
 
 	// Ensure we're being called from a supported builder
 	switch artifact.BuilderId() {
@@ -151,9 +146,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		instance.BuilderId:
 		break
 	default:
-		return artifact, keepArtifactBool, false,
-			fmt.Errorf("unexpected artifact type: %s\nCan only export from Amazon builders",
-				artifact.BuilderId())
+		return artifact, keepArtifactBool, false, fmt.Errorf("unexpected artifact type: %s\nCan only export from Amazon builders", artifact.BuilderId())
 	}
 
 	// Get AWS config
@@ -206,6 +199,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 				client:              targetClient,
 				sourceImage:         source,
 				sourceRegion:        ami.region,
+				targetRegion:        targetCfg.Region,
 				sourceImageID:       ami.id,
 				ensureAvailable:     p.config.EnsureAvailable,
 				tagsOnly:            p.config.TagsOnly,
@@ -221,31 +215,21 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 
 		// Create copy operations for each user (via role assumption)
 		for _, user := range p.config.AMIUsers {
-			var targetClient *ec2.Client
+			targetCfg := awsCfg.Copy()
 			if p.config.RoleName != "" {
 				role := fmt.Sprintf("arn:aws:iam::%s:role/%s", user, p.config.RoleName)
 				stsClient := sts.NewFromConfig(*awsCfg)
 				creds := stscreds.NewAssumeRoleProvider(stsClient, role)
-
-				targetCfg, err := config.LoadDefaultConfig(ctx,
-					config.WithRegion(ami.region),
-					config.WithCredentialsProvider(aws.NewCredentialsCache(creds)),
-				)
-				if err != nil {
-					ui.Error(err.Error())
-					continue
-				}
-				targetClient = ec2.NewFromConfig(targetCfg)
-			} else {
-				cfg := awsCfg.Copy()
-				targetClient = ec2.NewFromConfig(cfg)
+				targetCfg.Credentials = aws.NewCredentialsCache(creds)
 			}
+			targetClient := ec2.NewFromConfig(targetCfg)
 
 			copy := &copyOperation{
 				ctx:                 ctx,
 				client:              targetClient,
 				sourceImage:         source,
 				sourceRegion:        ami.region,
+				targetRegion:        targetCfg.Region,
 				sourceImageID:       ami.id,
 				ensureAvailable:     p.config.EnsureAvailable,
 				tagsOnly:            p.config.TagsOnly,
@@ -261,13 +245,17 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 	}
 
 	// Execute copies
-	copyErrs := p.executeCopies(copies, ui)
+	copiedAmis, copyErrs := p.executeCopies(copies, ui)
 	if copyErrCount := len(copyErrs.Errors); copyErrCount > 0 {
 		return artifact, true, false, fmt.Errorf(
 			"%d/%d AMI copies failed, manual reconciliation may be required", copyErrCount, len(copies))
 	}
 
-	return artifact, keepArtifactBool, false, nil
+	return &Artifact{
+		CopiedAmis:     copiedAmis,
+		BuilderIdValue: BuilderId,
+		StateData:      make(map[string]any),
+	}, keepArtifactBool, false, nil
 }
 
 // ami encapsulates simplistic details about an AMI.

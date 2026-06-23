@@ -268,6 +268,48 @@ func TestProperty_BuilderCompatibilityGate(t *testing.T) {
 	}
 }
 
+// TestAmisFromArtifactID_EmptyInput covers B5-prereq: an empty artifact ID
+// must not be split into a junk []*ami{{region:"", id:""}}; it must return nil
+// (or an empty slice) so callers don't make bogus AWS calls.
+func TestAmisFromArtifactID_EmptyInput(t *testing.T) {
+	amis := amisFromArtifactID("")
+	if len(amis) != 0 {
+		t.Fatalf("expected amisFromArtifactID(\"\") to return nil/empty, got %+v", amis)
+	}
+}
+
+// TestPostProcess_KeepInputArtifactFalseOnSuccess covers B5: when ami-watermark
+// successfully passes through, it must return keepInputArtifact=false so the
+// chain does not accumulate the input artifact once per post-processor.
+//
+// The artifact ID is empty so amisFromArtifactID returns nil (after the prereq
+// fix), the watermark loop is a no-op, and PostProcess reaches the success
+// return at line 179 without making any AWS calls.
+func TestPostProcess_KeepInputArtifactFalseOnSuccess(t *testing.T) {
+	artifact := &mockArtifact{
+		builderId: "mitchellh.amazonebs", // ebs.BuilderId
+		id:        "",
+	}
+
+	p := &PostProcessor{}
+	if err := p.Configure(map[string]interface{}{
+		"watermark_names":            []string{"test-watermark"},
+		"skip_credential_validation": true,
+		"region":                     "us-east-1",
+	}); err != nil {
+		t.Fatalf("Configure failed: %v", err)
+	}
+
+	_, keepInputArtifact, _, err := p.PostProcess(context.Background(), &mockUi{}, artifact)
+	if err != nil {
+		t.Fatalf("PostProcess returned unexpected error: %v", err)
+	}
+
+	if keepInputArtifact {
+		t.Errorf("B5: expected keepInputArtifact=false on success, got true (causes input artifact duplication across post-processor chain)")
+	}
+}
+
 // P5: Fail-fast on API error — since we can't mock the AWS API easily without
 // interfaces, we verify the structural invariant: PostProcess returns an error
 // when GetAWSConfig fails (simulating credential misconfiguration).

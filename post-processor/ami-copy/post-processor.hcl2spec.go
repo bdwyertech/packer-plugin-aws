@@ -171,7 +171,6 @@ type FlatTarget struct {
 	Token                 *string                           `mapstructure:"token" required:"false" cty:"token" hcl:"token"`
 	VaultAWSEngine        *common.FlatVaultAWSEngineOptions `mapstructure:"vault_aws_engine" required:"false" cty:"vault_aws_engine" hcl:"vault_aws_engine"`
 	PollingConfig         *common.FlatAWSPollingConfig      `mapstructure:"aws_polling" required:"false" cty:"aws_polling" hcl:"aws_polling"`
-	Name                  *string                           `mapstructure:"name" cty:"name" hcl:"name"`
 }
 
 // FlatMapstructure returns a new FlatTarget.
@@ -202,7 +201,6 @@ func (*FlatTarget) HCL2Spec() map[string]hcldec.Spec {
 		"token":                         &hcldec.AttrSpec{Name: "token", Type: cty.String, Required: false},
 		"vault_aws_engine":              &hcldec.BlockSpec{TypeName: "vault_aws_engine", Nested: hcldec.ObjectSpec((*common.FlatVaultAWSEngineOptions)(nil).HCL2Spec())},
 		"aws_polling":                   &hcldec.BlockSpec{TypeName: "aws_polling", Nested: hcldec.ObjectSpec((*common.FlatAWSPollingConfig)(nil).HCL2Spec())},
-		"name":                          &hcldec.AttrSpec{Name: "name", Type: cty.String, Required: false},
 	}
 	return s
 }

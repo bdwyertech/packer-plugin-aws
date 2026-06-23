@@ -18,9 +18,33 @@ import (
 
 // AmiManifest holds the data about the resulting copied image
 type AmiManifest struct {
-	AccountID string `json:"account_id"`
-	Region    string `json:"region"`
-	ImageID   string `json:"image_id"`
+	AccountID string      `json:"account_id"`
+	Region    string      `json:"region"`
+	ImageID   string      `json:"image_id"`
+	client    *ec2.Client `json:"-"`
+}
+
+func (ami *AmiManifest) delete(ctx context.Context) error {
+	image, err := helpers.LocateSingleAMI(ctx, ami.ImageID, ami.client)
+	if err != nil {
+		return err
+	}
+	_, err = ami.client.DeregisterImage(ctx, &ec2.DeregisterImageInput{
+		ImageId: image.ImageId,
+	})
+
+	for _, bdm := range image.BlockDeviceMappings {
+		if bdm.Ebs != nil && bdm.Ebs.SnapshotId != nil {
+			_, err = ami.client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+				SnapshotId: bdm.Ebs.SnapshotId,
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return err
 }
 
 // copyOperation holds data and methods related to copying an image.
@@ -29,6 +53,7 @@ type copyOperation struct {
 	client              *ec2.Client
 	sourceImage         *types.Image
 	sourceRegion        string
+	targetRegion        string
 	sourceImageID       string
 	copiedImageID       string
 	ensureAvailable     bool
@@ -167,9 +192,10 @@ func (c *copyOperation) waitForAvailable(ui packer.Ui) error {
 }
 
 // executeCopies runs all copy operations concurrently.
-func (p PostProcessor) executeCopies(copies []*copyOperation, ui packer.Ui) (errs packer.MultiError) {
+func (p PostProcessor) executeCopies(copies []*copyOperation, ui packer.Ui) ([]*AmiManifest, packer.MultiError) {
 	copyCount := len(copies)
 	amiManifests := make(chan *AmiManifest, copyCount)
+	var errs packer.MultiError
 
 	concurrencyCount := p.config.CopyConcurrency
 	if concurrencyCount == 0 { // Unlimited
@@ -182,9 +208,10 @@ func (p PostProcessor) executeCopies(copies []*copyOperation, ui packer.Ui) (err
 		pool.Go(func() {
 			ui.Say(
 				fmt.Sprintf(
-					"[%s] Copying %s to account %s (encrypted: %t)",
+					"[%s:%s] Copying to %s:%s (encrypted: %t)",
 					copy.sourceRegion,
 					copy.sourceImageID,
+					copy.targetRegion,
 					copy.targetAccountID,
 					copy.encrypted,
 				),
@@ -198,16 +225,17 @@ func (p PostProcessor) executeCopies(copies []*copyOperation, ui packer.Ui) (err
 
 			manifest := &AmiManifest{
 				AccountID: copy.targetAccountID,
-				Region:    copy.sourceRegion,
+				Region:    copy.targetRegion,
 				ImageID:   copy.copiedImageID,
 			}
 			amiManifests <- manifest
 
 			ui.Say(
 				fmt.Sprintf(
-					"[%s] Finished copying %s to %s (copied id: %s)",
+					"[%s:%s] Finished copying to %s:%s (copied id: %s)",
 					copy.sourceRegion,
 					copy.sourceImageID,
+					copy.targetRegion,
 					copy.targetAccountID,
 					copy.copiedImageID,
 				),
@@ -216,23 +244,24 @@ func (p PostProcessor) executeCopies(copies []*copyOperation, ui packer.Ui) (err
 	}
 	pool.Wait()
 
-	if p.config.ManifestOutput != "" {
-		manifests := []*AmiManifest{}
-	LOOP:
-		for {
-			select {
-			case m := <-amiManifests:
-				manifests = append(manifests, m)
-			default:
-				break LOOP
-			}
+	manifests := []*AmiManifest{}
+LOOP:
+	for {
+		select {
+		case m := <-amiManifests:
+			manifests = append(manifests, m)
+		default:
+			break LOOP
 		}
+	}
+	close(amiManifests)
+
+	if p.config.ManifestOutput != "" {
 		err := writeManifests(p.config.ManifestOutput, manifests)
 		if err != nil {
 			ui.Say(fmt.Sprintf("Unable to write out manifest to %s: %s", p.config.ManifestOutput, err))
 		}
 	}
-	close(amiManifests)
 
-	return
+	return manifests, errs
 }
