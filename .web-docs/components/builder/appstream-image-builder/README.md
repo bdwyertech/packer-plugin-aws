@@ -31,7 +31,7 @@
 
 - `iam_role_arn` (string) - ARN of the IAM role to use for the Image Builder. If not specified, AppStream will use the default role.
 
-- `appstream_agent_version` (string) - Version of the AppStream agent to use. Defaults to `LATEST`.
+- `appstream_agent_version` (string) - Version of the AppStream agent to use.
 
 - `enable_default_internet_access` (bool) - Enable default internet access for the Image Builder. Defaults to `false`.
 

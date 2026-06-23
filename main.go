@@ -11,6 +11,7 @@ import (
 	ds_subnet "github.com/bdwyertech/packer-plugin-aws/datasource/subnet"
 	ami_copy "github.com/bdwyertech/packer-plugin-aws/post-processor/ami-copy"
 	ami_delete "github.com/bdwyertech/packer-plugin-aws/post-processor/ami-delete"
+	ami_watermark "github.com/bdwyertech/packer-plugin-aws/post-processor/ami-watermark"
 	pp_appstream_share "github.com/bdwyertech/packer-plugin-aws/post-processor/appstream-share"
 	"github.com/bdwyertech/packer-plugin-aws/version"
 	"github.com/hashicorp/packer-plugin-sdk/plugin"
@@ -21,6 +22,7 @@ func main() {
 	// AMI
 	pps.RegisterPostProcessor("ami-delete", new(ami_delete.PostProcessor))
 	pps.RegisterPostProcessor("ami-copy", new(ami_copy.PostProcessor))
+	pps.RegisterPostProcessor("ami-watermark", new(ami_watermark.PostProcessor))
 	// AppStream
 	pps.RegisterDatasource("appstream-image", new(ds_image.Datasource))
 	pps.RegisterDatasource("appstream-image-builder", new(ds_image_builder.Datasource))

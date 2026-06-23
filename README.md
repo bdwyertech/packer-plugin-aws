@@ -6,6 +6,7 @@ This plugin provides Packer components for working with AWS services:
 - **EC2 Data Sources**: Query VPC subnets and other EC2 resources in a fashion similar to Terraform
 - **AppStream 2.0 Post-Processor**: Share and copy AppStream images across accounts and regions
 - **AMI Post-Processor**: Delete AMIs and their associated EBS snapshots
+- **AMI Watermark Post-Processor**: Attach provenance watermarks to AMIs
 
 ## Components
 
@@ -58,6 +59,12 @@ Copies AWS AMIs to other AWS accounts and/or regions. Useful for distributing AM
 Deletes AWS AMIs and their associated EBS snapshots. Useful for cleanup operations or removing temporary AMIs created during multi-step build processes.
 
 [Full Post-Processor Documentation](docs/post-processors/ami-delete.mdx)
+
+### Post-Processor: `ami-watermark`
+
+Attaches AWS AMI watermarks to private AMIs for provenance tracking. Watermarks persist across copies, launches, and sharing operations, making them ideal for golden image pipelines.
+
+[Full Post-Processor Documentation](docs/post-processors/ami-watermark.mdx)
 
 ## Installation
 
