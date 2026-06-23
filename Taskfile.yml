@@ -1,0 +1,11 @@
+version: '3'
+
+tasks:
+  dev:
+    env:
+      GOARM64: v8.2,lse,crypto
+    dir: .
+    cmds:
+      # - make generate
+      - rm -rf ~/.config/packer/plugins/github.com/bdwyertech/aws/packer-plugin-aws*
+      - make dev
