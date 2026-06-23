@@ -151,7 +151,7 @@ func capturingUi() (*packersdk.BasicUi, *bytes.Buffer) {
 // TestExecuteCopies_CrossRegion_ReportsTargetRegion covers B1 and B2: when a
 // copyOperation is run with sourceRegion != targetRegion, the resulting
 // AmiManifest must record the target region and log lines must reference the
-// target region — not the source region.
+// target region as the destination — not collapse it under the source region.
 func TestExecuteCopies_CrossRegion_ReportsTargetRegion(t *testing.T) {
 	ui, buf := capturingUi()
 
@@ -195,20 +195,20 @@ func TestExecuteCopies_CrossRegion_ReportsTargetRegion(t *testing.T) {
 		t.Errorf("B1: expected AmiManifest.Region=us-west-1, got %q", manifests[0].Region)
 	}
 
-	// B2: log output must reference [us-west-1] for both the start and finish
-	// messages, and must not attribute the copy to [us-east-1].
+	// B2: log output must reference the cross-region destination. Current
+	// format is "[sourceRegion:sourceImageID] ... to targetRegion:targetAccountID".
 	out := buf.String()
-	if !strings.Contains(out, "[us-west-1]") {
-		t.Errorf("B2: expected log output to contain [us-west-1], got:\n%s", out)
+	if !strings.Contains(out, "[us-east-1:ami-src]") {
+		t.Errorf("B2: expected log output to contain source prefix [us-east-1:ami-src], got:\n%s", out)
 	}
-	if strings.Contains(out, "[us-east-1]") {
-		t.Errorf("B2: log output must not contain [us-east-1] for a cross-region copy, got:\n%s", out)
+	if !strings.Contains(out, "to us-west-1:000000000000") {
+		t.Errorf("B2: expected log output to reference destination us-west-1:000000000000, got:\n%s", out)
 	}
 }
 
 // TestExecuteCopies_SameRegion_StillReportsRegion is the regression guard for
 // the existing same-region path: when sourceRegion == targetRegion, reporting
-// continues to use that region.
+// continues to use that region for both prefix and destination.
 func TestExecuteCopies_SameRegion_StillReportsRegion(t *testing.T) {
 	ui, buf := capturingUi()
 
@@ -238,8 +238,12 @@ func TestExecuteCopies_SameRegion_StillReportsRegion(t *testing.T) {
 	if len(manifests) != 1 || manifests[0].Region != "us-east-1" {
 		t.Fatalf("expected single manifest with Region=us-east-1, got %+v", manifests)
 	}
-	if !strings.Contains(buf.String(), "[us-east-1]") {
-		t.Errorf("expected log output to contain [us-east-1], got:\n%s", buf.String())
+	out := buf.String()
+	if !strings.Contains(out, "[us-east-1:ami-src]") {
+		t.Errorf("expected log output to contain source prefix [us-east-1:ami-src], got:\n%s", out)
+	}
+	if !strings.Contains(out, "to us-east-1:000000000000") {
+		t.Errorf("expected log output to reference destination us-east-1:000000000000, got:\n%s", out)
 	}
 }
 

@@ -62,7 +62,7 @@ func (a *Artifact) String() string {
 
 	// Build output
 	var result strings.Builder
-	result.WriteString("AMIs were copied to the following accounts:")
+	result.WriteString("AMIs were copied to the following accounts/regions:")
 	for i, region := range regions {
 		if i > 0 {
 			result.WriteString("\n")
