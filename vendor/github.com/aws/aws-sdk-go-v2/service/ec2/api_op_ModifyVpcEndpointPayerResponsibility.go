@@ -9,47 +9,38 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// Bundles an Amazon instance store-backed Windows instance.
-//
-// During bundling, only the root device volume (C:\) is bundled. Data on other
-// instance store volumes is not preserved.
-//
-// This action is no longer supported. To create an AMI, use [CreateImage]. For more
-// information, see [Create an Amazon EBS-backed AMI]in the Amazon EC2 User Guide.
-//
-// [Create an Amazon EBS-backed AMI]: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/creating-an-ami-ebs.html
-// [CreateImage]: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateImage.html
-func (c *Client) BundleInstance(ctx context.Context, params *BundleInstanceInput, optFns ...func(*Options)) (*BundleInstanceOutput, error) {
+// Modifies the billing account for VPC endpoint usage/charges.
+func (c *Client) ModifyVpcEndpointPayerResponsibility(ctx context.Context, params *ModifyVpcEndpointPayerResponsibilityInput, optFns ...func(*Options)) (*ModifyVpcEndpointPayerResponsibilityOutput, error) {
 	if params == nil {
-		params = &BundleInstanceInput{}
+		params = &ModifyVpcEndpointPayerResponsibilityInput{}
 	}
 
-	result, metadata, err := c.invokeOperation(ctx, "BundleInstance", params, optFns, c.addOperationBundleInstanceMiddlewares)
+	result, metadata, err := c.invokeOperation(ctx, "ModifyVpcEndpointPayerResponsibility", params, optFns, c.addOperationModifyVpcEndpointPayerResponsibilityMiddlewares)
 	if err != nil {
 		return nil, err
 	}
 
-	out := result.(*BundleInstanceOutput)
+	out := result.(*ModifyVpcEndpointPayerResponsibilityOutput)
 	out.ResultMetadata = metadata
 	return out, nil
 }
 
-// Contains the parameters for BundleInstance.
-type BundleInstanceInput struct {
+type ModifyVpcEndpointPayerResponsibilityInput struct {
 
-	// The ID of the instance to bundle.
-	//
-	// Default: None
+	// The Amazon Web Services account to which the usage of VPC endpoint is charged.
 	//
 	// This member is required.
-	InstanceId *string
+	PayerResponsibility types.PayerResponsibilityType
 
-	// The bucket in which to store the AMI. You can specify a bucket that you already
-	// own or a new bucket that Amazon EC2 creates on your behalf. If you specify a
-	// bucket that belongs to someone else, Amazon EC2 returns an error.
+	// The scope of usage/charges for which the billing account is being modified.
 	//
 	// This member is required.
-	Storage *types.Storage
+	Scope types.PayerResponsibilityScope
+
+	// The ID of the VPC endpoint.
+	//
+	// This member is required.
+	VpcEndpointId *string
 
 	// Checks whether you have the required permissions for the action, without
 	// actually making the request, and provides an error response. If you have the
@@ -57,14 +48,19 @@ type BundleInstanceInput struct {
 	// UnauthorizedOperation .
 	DryRun *bool
 
+	// The ID of the VPC endpoint service.
+	ServiceId *string
+
 	noSmithyDocumentSerde
 }
 
-// Contains the output of BundleInstance.
-type BundleInstanceOutput struct {
+type ModifyVpcEndpointPayerResponsibilityOutput struct {
 
-	// Information about the bundle task.
-	BundleTask *types.BundleTask
+	// The payer responsibility settings for the VPC endpoint.
+	PayerResponsibilities []types.PayerResponsibilityEntry
+
+	// The ID of the VPC endpoint.
+	VpcEndpointId *string
 
 	// Metadata pertaining to the operation's result.
 	ResultMetadata middleware.Metadata
@@ -72,12 +68,12 @@ type BundleInstanceOutput struct {
 	noSmithyDocumentSerde
 }
 
-func (c *Client) addOperationBundleInstanceMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	err = stack.Serialize.Add(&awsEc2query_serializeOpBundleInstance{}, middleware.After)
+func (c *Client) addOperationModifyVpcEndpointPayerResponsibilityMiddlewares(stack *middleware.Stack, options Options) (err error) {
+	err = stack.Serialize.Add(&awsEc2query_serializeOpModifyVpcEndpointPayerResponsibility{}, middleware.After)
 	if err != nil {
 		return err
 	}
-	err = stack.Deserialize.Add(&awsEc2query_deserializeOpBundleInstance{}, middleware.After)
+	err = stack.Deserialize.Add(&awsEc2query_deserializeOpModifyVpcEndpointPayerResponsibility{}, middleware.After)
 	if err != nil {
 		return err
 	}
@@ -106,10 +102,10 @@ func (c *Client) addOperationBundleInstanceMiddlewares(stack *middleware.Stack, 
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
-	if err = addOpBundleInstanceValidationMiddleware(stack); err != nil {
+	if err = addOpModifyVpcEndpointPayerResponsibilityValidationMiddleware(stack); err != nil {
 		return err
 	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware(options.Region, "BundleInstance"), middleware.Before); err != nil {
+	if err = stack.Initialize.Add(newServiceMetadataMiddleware(options.Region, "ModifyVpcEndpointPayerResponsibility"), middleware.Before); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
