@@ -1,0 +1,8 @@
+<!-- Code generated from the comments of the Config struct in post-processor/ami-tag/post-processor.go; DO NOT EDIT MANUALLY -->
+
+- `tags` (map[string]string) - Tags to apply to each AMI (never to snapshots). Min 1, max 50 entries.
+  Keys: 1-128 chars, must not start with `aws:` (any case).
+  Values: 0-256 chars. Keys prefixed with `ec2:SharedTag/` are
+  passed through unchanged.
+
+<!-- End of code generated from the comments of the Config struct in post-processor/ami-tag/post-processor.go; -->
