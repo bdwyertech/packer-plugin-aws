@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -105,9 +106,7 @@ func (r *rawTemplate) Template() (*Template, error) {
 		result.Comments = make(map[string]string, len(r.Comments))
 
 		for _, c := range r.Comments {
-			for k, v := range c {
-				result.Comments[k] = v
-			}
+			maps.Copy(result.Comments, c)
 		}
 	}
 
@@ -551,7 +550,7 @@ func highlightPosition(f *os.File, pos int64) (line, col int, highlight string) 
 	lastLine := ""
 	thisLine := new(bytes.Buffer)
 	// Loop through template to find line, column
-	for n := int64(0); n < pos; n++ {
+	for range pos {
 		// read byte from io.Reader
 		b, err := br.ReadByte()
 		if err != nil {

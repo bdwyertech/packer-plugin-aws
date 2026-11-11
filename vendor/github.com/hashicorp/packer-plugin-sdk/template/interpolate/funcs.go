@@ -6,6 +6,7 @@ package interpolate
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -75,9 +76,7 @@ func Funcs(ctx *Context) template.FuncMap {
 		}
 	}
 	if ctx != nil {
-		for k, v := range ctx.Funcs {
-			result[k] = v
-		}
+		maps.Copy(result, ctx.Funcs)
 	}
 
 	return template.FuncMap(result)
@@ -223,7 +222,7 @@ func funcGenTimestamp(ctx *Context) interface{} {
 func funcGenUser(ctx *Context) interface{} {
 	return func(k string) (string, error) {
 		if ctx == nil || ctx.UserVariables == nil {
-			return "", errors.New("test")
+			return "", errors.New("no user variables are set in the interpolation context")
 		}
 
 		val, ok := ctx.UserVariables[k]

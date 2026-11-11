@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
@@ -73,29 +74,12 @@ func Validate(config *Config) error {
 	var errs *packersdk.MultiError
 
 	if runtime.GOOS == "windows" {
-		if len(config.ExecuteCommand) == 0 {
-			config.ExecuteCommand = []string{
-				"cmd",
-				"/V",
-				"/C",
-				"{{.Vars}}",
-				"call",
-				"{{.Script}}",
-			}
-		}
 		if len(config.TempfileExtension) == 0 {
 			config.TempfileExtension = ".cmd"
 		}
 	} else {
 		if config.InlineShebang == "" {
 			config.InlineShebang = "/bin/sh -e"
-		}
-		if len(config.ExecuteCommand) == 0 {
-			config.ExecuteCommand = []string{
-				"/bin/sh",
-				"-c",
-				"{{.Vars}} {{.Script}}",
-			}
 		}
 	}
 
@@ -127,6 +111,32 @@ func Validate(config *Config) error {
 		}
 	}
 
+	if len(config.ExecuteCommand) == 0 {
+		if runtime.GOOS == "windows" {
+			config.ExecuteCommand = []string{
+				"cmd",
+				"/V",
+				"/C",
+				"{{.Vars}}",
+				"call",
+				"{{.Script}}",
+			}
+		} else if len(config.Inline) > 0 {
+			config.ExecuteCommand = []string{
+				"/bin/sh",
+				"-c",
+				fmt.Sprintf("{{.Vars}} %s \"$0\"", config.InlineShebang),
+				"{{.Script}}",
+			}
+		} else {
+			config.ExecuteCommand = []string{
+				"/bin/sh",
+				"-c",
+				"{{.Vars}} {{.Script}}",
+			}
+		}
+	}
+
 	if len(config.Scripts) > 0 && config.Inline != nil {
 		errs = packersdk.MultiErrorAppend(errs, tooManyOptionsErr)
 	}
@@ -143,13 +153,7 @@ func Validate(config *Config) error {
 	supportedSyslist := []string{"darwin", "freebsd", "linux", "openbsd", "solaris", "windows"}
 	if len(config.OnlyOn) > 0 {
 		for _, provided_os := range config.OnlyOn {
-			supported_os := false
-			for _, go_os := range supportedSyslist {
-				if provided_os == go_os {
-					supported_os = true
-					break
-				}
-			}
+			supported_os := slices.Contains(supportedSyslist, provided_os)
 			if !supported_os {
 				return fmt.Errorf("Invalid OS specified in only_on: '%s'\n"+
 					"Supported OS names: %s", provided_os, strings.Join(supportedSyslist, ", "))

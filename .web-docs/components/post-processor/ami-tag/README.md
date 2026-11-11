@@ -1,0 +1,129 @@
+
+This is ideal for golden image pipelines where a central team builds AMIs, attaches shared tags for provenance and policy enforcement, and distributes them across organizational accounts.
+
+## Configuration Reference
+
+### Required
+
+- `tags` (map[string]string) - A map of tag key-value pairs to apply to each AMI. Min 1, max 50 entries. Keys must be 1-128 characters and must not start with `aws:` (any case). Values must be 0-256 characters. Keys prefixed with `ec2:SharedTag/` are passed through unchanged.
+
+### Optional
+
+In addition to the above, the following standard AWS authentication fields are supported:
+
+- `access_key` (string) - AWS access key
+- `secret_key` (string) - AWS secret key
+- `region` (string) - AWS region (optional; each AMI's region comes from the artifact)
+- `profile` (string) - AWS shared credentials profile
+- `assume_role` (block) - IAM role to assume
+
+See the [shared AWS authentication documentation](/docs/builder/amazon#authentication) for full details.
+
+> **Note:** Builder credentials are NOT inherited across the plugin RPC boundary. To reuse credentials between a builder and `ami-tag`, define them once as HCL `variable` values and reference them from both blocks.
+
+## IAM Permissions
+
+The credentials used must have the following permissions on the target AMIs:
+
+- `ec2:CreateTags` - To apply tags to AMIs
+- `ec2:DescribeTags` - To read existing tags for the pre-tagging limit check
+
+Minimal IAM policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateTags",
+        "ec2:DescribeTags"
+      ],
+      "Resource": "arn:aws:ec2:*::image/*"
+    }
+  ]
+}
+```
+
+## Example Usage
+
+### Basic Shared Tags
+
+```hcl
+variable "aws_profile" {
+  default = "golden-ami"
+}
+
+source "amazon-ebs" "base" {
+  profile       = var.aws_profile
+  region        = "us-east-1"
+  source_ami    = "ami-12345678"
+  instance_type = "t3.micro"
+  ssh_username  = "ec2-user"
+  ami_name      = "golden-base-{{timestamp}}"
+}
+
+build {
+  sources = ["source.amazon-ebs.base"]
+
+  post-processor "aws-ami-tag" {
+    profile = var.aws_profile
+    tags = {
+      "ec2:SharedTag/team"    = "platform"
+      "ec2:SharedTag/purpose" = "golden-base"
+    }
+  }
+}
+```
+
+### Chaining with ami-copy
+
+Place `ami-tag` BEFORE `ami-copy` in the post-processor chain. The `ami-copy` artifact carries no credentials, so `ami-tag` can only tag AMIs in its own account. Use the `ami-copy` `tags` option to tag each copy with the target's own credentials. Consumers of shared AMIs see only tags whose keys use the `ec2:SharedTag/` prefix.
+
+```hcl
+build {
+  sources = ["source.amazon-ebs.base"]
+
+  post-processors {
+    post-processor "aws-ami-tag" {
+      profile = var.aws_profile
+      tags = {
+        "ec2:SharedTag/owner" = "platform-team"
+      }
+    }
+
+    post-processor "aws-ami-copy" {
+      ami_users = ["111111111111", "222222222222"]
+      tags = {
+        "ec2:SharedTag/owner" = "platform-team"
+      }
+    }
+  }
+}
+```
+
+## How It Works
+
+1. Validates builder compatibility (ebs, ebssurrogate, ebsvolume, chroot, instance)
+2. Parses AMI IDs from the upstream artifact
+3. Establishes an AWS session using the configured credentials
+4. For each AMI, reads existing tags with `DescribeTags` to check the 50-tag limit
+5. Calls `CreateTags` for each AMI with retry on `UnauthorizedOperation`
+6. Passes the original artifact through unchanged to downstream post-processors
+
+## Error Handling
+
+- `UnauthorizedOperation` is retried with linear backoff (up to 11 attempts) since IAM changes can be eventually consistent
+- `TagLimitExceeded` is not retried and reports the 50-tag limit clearly
+- If the union of existing and configured tags would exceed 50, the error is reported before calling `CreateTags`
+- Processing halts at the first failure (fail-fast)
+- Tag values are never logged, only keys
+
+## Notes
+
+- Tags are applied only to AMI resources, never to backing snapshots
+- `ec2:SharedTag/` prefixed keys are passed through to the API unchanged
+- The `ami-copy` builder ID is rejected with guidance to reorder post-processors
+- If no credential fields are set, the AWS default credential chain is used
+- `region` is optional since each AMI's region comes from the artifact entry

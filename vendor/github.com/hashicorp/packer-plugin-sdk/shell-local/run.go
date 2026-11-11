@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 
@@ -31,13 +32,7 @@ func Run(ctx context.Context, ui packersdk.Ui, config *Config, generatedData map
 	config.ctx.Data = generatedData
 	// Check if shell-local can even execute against this runtime OS
 	if len(config.OnlyOn) > 0 {
-		runCommand := false
-		for _, os := range config.OnlyOn {
-			if os == runtime.GOOS {
-				runCommand = true
-				break
-			}
-		}
+		runCommand := slices.Contains(config.OnlyOn, runtime.GOOS)
 		if !runCommand {
 			ui.Say("Skipping shell-local due to runtime OS")
 			log.Printf("[INFO] (shell-local): skipping shell-local due to missing runtime OS")
@@ -175,7 +170,7 @@ func createInterpolatedCommands(config *Config, script string, flattenedEnvVars 
 }
 
 func createFlattenedEnvVars(config *Config) (string, error) {
-	flattened := ""
+	var flattened strings.Builder
 	envVars := make(map[string]string)
 
 	// Always available Packer provided env vars
@@ -223,7 +218,7 @@ func createFlattenedEnvVars(config *Config) (string, error) {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		flattened += fmt.Sprintf(config.EnvVarFormat, key, envVars[key])
+		flattened.WriteString(fmt.Sprintf(config.EnvVarFormat, key, envVars[key]))
 	}
-	return flattened, nil
+	return flattened.String(), nil
 }
