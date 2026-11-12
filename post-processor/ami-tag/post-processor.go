@@ -16,10 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	ami_copy "github.com/bdwyertech/packer-plugin-aws/post-processor/ami-copy"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer-plugin-amazon/builder/chroot"
-	awscommon "github.com/hashicorp/packer-plugin-amazon/builder/common"
 	"github.com/hashicorp/packer-plugin-amazon/builder/ebs"
 	"github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate"
 	"github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume"
@@ -30,6 +28,10 @@ import (
 	"github.com/hashicorp/packer-plugin-sdk/retry"
 	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
+
+	ami_copy "github.com/bdwyertech/packer-plugin-aws/post-processor/ami-copy"
+
+	awscommon "github.com/hashicorp/packer-plugin-amazon/builder/common"
 )
 
 // BuilderId is the ID of this post processor.
@@ -48,6 +50,221 @@ var (
 	errMergedTagLimit = errors.New("merged tag count exceeds limit")
 	errTagLimitAWS    = errors.New("AWS TagLimitExceeded")
 )
+
+// Config is the post-processor configuration with interpolation supported.
+type Config struct {
+	common.PackerConfig    `mapstructure:",squash"`
+	awscommon.AccessConfig `mapstructure:",squash"`
+
+	// Tags to apply to each AMI (never to snapshots). Min 1, max 50 entries.
+	// Keys: 1-128 chars, must not start with `aws:` (any case).
+	// Values: 0-256 chars. Keys prefixed with `ec2:SharedTag/` are
+	// passed through unchanged.
+	Tags map[string]string `mapstructure:"tags"`
+
+	ctx interpolate.Context
+}
+
+// PostProcessor implements Packer's PostProcessor interface.
+type PostProcessor struct {
+	config Config
+
+	// Test-only seams (unexported, so not decoded from HCL and not in
+	// the generated spec). Nil means production defaults.
+	newClient  func(cfg aws.Config, region string) tagAPI
+	retryDelay func(attempt uint) time.Duration
+}
+
+var _ packer.PostProcessor = new(PostProcessor)
+
+// ConfigSpec returns the HCL object spec for the configuration.
+func (p *PostProcessor) ConfigSpec() hcldec.ObjectSpec {
+	return p.config.FlatMapstructure().HCL2Spec()
+}
+
+// Configure interpolates and validates requisite vars for the PostProcessor.
+func (p *PostProcessor) Configure(raws ...any) error {
+	p.config.ctx.Funcs = awscommon.TemplateFuncs
+
+	if err := config.Decode(&p.config, &config.DecodeOpts{
+		PluginType:         BuilderId,
+		Interpolate:        true,
+		InterpolateContext: &p.config.ctx,
+		InterpolateFilter: &interpolate.RenderFilter{
+			Exclude: []string{"tags"},
+		},
+	}, raws...); err != nil {
+		return err
+	}
+
+	var errs *packer.MultiError
+
+	for _, e := range validateTags(p.config.Tags) {
+		errs = packer.MultiErrorAppend(errs, e)
+	}
+
+	errs = packer.MultiErrorAppend(errs,
+		p.config.AccessConfig.Prepare(&p.config.PackerConfig)...)
+
+	if errs != nil && len(errs.Errors) != 0 {
+		return errs
+	}
+	return nil
+}
+
+// PostProcess applies configured tags to each AMI in the artifact.
+func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
+	// Step 1: Builder compatibility check.
+	bid := artifact.BuilderId()
+	if !isSupportedBuilder(bid) {
+		msg := fmt.Sprintf(
+			"unsupported builder %q; supported builders: %v",
+			bid, supportedBuilderIDs())
+		if bid == ami_copy.BuilderId {
+			msg += ". Place ami-tag before ami-copy in the post-processor chain, or use the ami-copy tags option"
+		}
+		return artifact, true, false, fmt.Errorf("%s", msg)
+	}
+
+	// Step 2: Parse artifact ID into (region, ami-id) pairs.
+	amis, err := parseArtifactID(artifact.Id())
+	if err != nil {
+		return artifact, true, false, err
+	}
+
+	// Step 3: Get the base AWS config.
+	awsCfg, err := p.config.AccessConfig.GetAWSConfig(ctx)
+	if err != nil {
+		return artifact, true, false, err
+	}
+
+	// Step 4: Get generated data.
+	data := normalizeData(artifact.State("generated_data"))
+
+	// Pass 1 — per AMI: render and validate.
+	type amiResult struct {
+		ami      ami
+		client   tagAPI
+		rendered map[string]string
+	}
+	var results []amiResult
+	var allErrors []error
+	warnedAMITags := false
+	clients := make(map[string]tagAPI)
+	for _, a := range amis {
+		client, ok := clients[a.region]
+		if !ok {
+			cfg := awsCfg.Copy()
+			cfg.Region = a.region
+			if p.newClient != nil {
+				client = p.newClient(cfg, a.region)
+			} else {
+				client = ec2.NewFromConfig(cfg)
+			}
+			clients[a.region] = client
+		}
+		existing, err := existingTags(ctx, client, a.id)
+		if err != nil {
+			allErrors = append(allErrors, fmt.Errorf(
+				"error reading tags for AMI %s in %s: %w", a.id, a.region, err))
+			continue
+		}
+		d := maps.Clone(data)
+		if _, has := data["AMITags"]; has && !warnedAMITags {
+			ui.Say(`warning: generated_data key "AMITags" overridden with actual AMI tags`)
+			warnedAMITags = true
+		}
+		d["AMITags"] = existing
+		rendered, errs := interpolateTags(p.config.Tags, p.config.ctx, d)
+
+		// AMITags retry: re-read tags up to 4 times if only
+		// AMITags keys are missing (eventual consistency).
+		for attempt := uint(0); attempt < 4 && isOnlyAMITagsMissing(errs); attempt++ {
+			ui.Say(fmt.Sprintf(
+				"AMI %s: waiting for tags to propagate, retry %d/4",
+				a.id, attempt+1))
+			if p.retryDelay != nil {
+				time.Sleep(p.retryDelay(attempt))
+			} else {
+				time.Sleep(time.Duration(1<<attempt) * time.Second)
+			}
+			re, reErr := existingTags(ctx, client, a.id)
+			if reErr != nil {
+				errs = []error{fmt.Errorf(
+					"error reading tags for AMI %s in %s: %w",
+					a.id, a.region, reErr)}
+				break
+			}
+			existing = re
+			d = maps.Clone(data)
+			d["AMITags"] = existing
+			rendered, errs = interpolateTags(p.config.Tags, p.config.ctx, d)
+		}
+
+		allErrors = append(allErrors, errs...)
+		allErrors = append(allErrors, validateRenderedTags(rendered)...)
+		if n := mergedKeyCount(existing, rendered); n > maxTags {
+			allErrors = append(allErrors, fmt.Errorf(
+				"AMI %s in %s has %d existing tags; applying would result in %d (limit 50): %w",
+				a.id, a.region, len(existing), n, errMergedTagLimit))
+		}
+		results = append(results, amiResult{a, client, rendered})
+	}
+
+	if len(allErrors) > 0 {
+		return artifact, true, false, &packer.MultiError{Errors: allErrors}
+	}
+
+	// Pass 2 — tag each AMI with pre-rendered map.
+	for _, r := range results {
+		keys := make([]string, 0, len(r.rendered))
+		for _, k := range slices.Sorted(maps.Keys(r.rendered)) {
+			keys = append(keys, k)
+		}
+		ui.Say(fmt.Sprintf("Tagging AMI %s in %s with keys %v",
+			r.ami.id, r.ami.region, keys))
+		ec2Tags := toEC2Tags(r.rendered)
+		if err := retryCreateTags(ctx, r.client, r.ami, ec2Tags, p.retryDelay); err != nil {
+			return artifact, true, false, fmt.Errorf(
+				"error tagging AMI %s in %s: %w", r.ami.id, r.ami.region, err)
+		}
+		ui.Say(fmt.Sprintf("Tagged AMI %s in %s", r.ami.id, r.ami.region))
+	}
+
+	// All AMIs tagged successfully — pass through the original artifact.
+	return artifact, false, false, nil
+}
+
+// ami is one parsed "region:ami-id" artifact entry.
+type ami struct {
+	id, region string
+}
+
+// supportedBuilderIDs returns the set of builder IDs
+// accepted by the post-processor, for use in error messages.
+func supportedBuilderIDs() []string {
+	return []string{
+		ebs.BuilderId,
+		ebssurrogate.BuilderId,
+		ebsvolume.BuilderId,
+		chroot.BuilderId,
+		instance.BuilderId,
+	}
+}
+
+// isSupportedBuilder reports whether the given builder ID is
+// one of the Amazon builders whose artifacts contain AMI IDs.
+func isSupportedBuilder(id string) bool {
+	switch id {
+	case ebs.BuilderId,
+		ebssurrogate.BuilderId,
+		ebsvolume.BuilderId,
+		chroot.BuilderId,
+		instance.BuilderId:
+		return true
+	}
+	return false
+}
 
 // toEC2Tags converts a string map to a sorted slice of EC2 Tag structs.
 func toEC2Tags(tags map[string]string) []ec2types.Tag {
@@ -72,9 +289,9 @@ type tagAPI interface {
 // mergedKeyCount returns the number of unique keys in the union of
 // existing tag keys and the configured tag map. Overwritten keys
 // count once.
-func mergedKeyCount(existing []string, tags map[string]string) int {
+func mergedKeyCount(existing map[string]string, tags map[string]string) int {
 	seen := make(map[string]struct{}, len(existing)+len(tags))
-	for _, k := range existing {
+	for k := range existing {
 		seen[k] = struct{}{}
 	}
 	for k := range tags {
@@ -83,25 +300,26 @@ func mergedKeyCount(existing []string, tags map[string]string) int {
 	return len(seen)
 }
 
-// existingTagKeys returns the tag keys already present on the given AMI.
-func existingTagKeys(ctx context.Context, api tagAPI, id string) ([]string, error) {
+// existingTags returns the tags already present on the given AMI
+// as a key→value map.
+func existingTags(ctx context.Context, api tagAPI, id string) (map[string]string, error) {
 	paginator := ec2.NewDescribeTagsPaginator(api, &ec2.DescribeTagsInput{
 		Filters: []ec2types.Filter{
 			{Name: aws.String("resource-id"), Values: []string{id}},
 			{Name: aws.String("resource-type"), Values: []string{"image"}},
 		},
 	})
-	var keys []string
+	tags := make(map[string]string)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("DescribeTags for %s: %w", id, err)
 		}
 		for _, t := range page.Tags {
-			keys = append(keys, aws.ToString(t.Key))
+			tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
 		}
 	}
-	return keys, nil
+	return tags, nil
 }
 
 // retryCreateTags calls CreateTags with retry on UnauthorizedOperation.
@@ -170,7 +388,7 @@ func tagAMI(ctx context.Context, ui packer.Ui,
 		a.id, a.region, keys))
 
 	// Step 2: Read existing tags.
-	existing, err := existingTagKeys(ctx, api, a.id)
+	existing, err := existingTags(ctx, api, a.id)
 	if err != nil {
 		wrapped := fmt.Errorf(
 			"error reading tags for AMI %s in %s: %w",
@@ -210,67 +428,6 @@ func tagAMI(ctx context.Context, ui packer.Ui,
 	return nil
 }
 
-// Config is the post-processor configuration with interpolation supported.
-type Config struct {
-	common.PackerConfig    `mapstructure:",squash"`
-	awscommon.AccessConfig `mapstructure:",squash"`
-
-	// Tags to apply to each AMI (never to snapshots). Min 1, max 50 entries.
-	// Keys: 1-128 chars, must not start with `aws:` (any case).
-	// Values: 0-256 chars. Keys prefixed with `ec2:SharedTag/` are
-	// passed through unchanged.
-	Tags map[string]string `mapstructure:"tags"`
-
-	ctx interpolate.Context
-}
-
-// PostProcessor implements Packer's PostProcessor interface.
-type PostProcessor struct {
-	config Config
-
-	// Test-only seams (unexported, so not decoded from HCL and not in
-	// the generated spec). Nil means production defaults.
-	newClient  func(cfg aws.Config, region string) tagAPI
-	retryDelay func(attempt uint) time.Duration
-}
-
-var _ packer.PostProcessor = new(PostProcessor)
-
-// ConfigSpec returns the HCL object spec for the configuration.
-func (p *PostProcessor) ConfigSpec() hcldec.ObjectSpec {
-	return p.config.FlatMapstructure().HCL2Spec()
-}
-
-// Configure interpolates and validates requisite vars for the PostProcessor.
-func (p *PostProcessor) Configure(raws ...any) error {
-	p.config.ctx.Funcs = awscommon.TemplateFuncs
-
-	if err := config.Decode(&p.config, &config.DecodeOpts{
-		PluginType:         BuilderId,
-		Interpolate:        true,
-		InterpolateContext: &p.config.ctx,
-		InterpolateFilter: &interpolate.RenderFilter{
-			Exclude: []string{},
-		},
-	}, raws...); err != nil {
-		return err
-	}
-
-	var errs *packer.MultiError
-
-	for _, e := range validateTags(p.config.Tags) {
-		errs = packer.MultiErrorAppend(errs, e)
-	}
-
-	errs = packer.MultiErrorAppend(errs,
-		p.config.AccessConfig.Prepare(&p.config.PackerConfig)...)
-
-	if errs != nil && len(errs.Errors) != 0 {
-		return errs
-	}
-	return nil
-}
-
 // validateTags checks that the tag map meets AWS constraints.
 // Returns a slice of errors; each violating key is named.
 func validateTags(tags map[string]string) []error {
@@ -294,7 +451,7 @@ func validateTags(tags map[string]string) []error {
 				"tag key %q exceeds maximum length of %d characters",
 				k, maxKeyLen))
 		}
-		if utf8.RuneCountInString(v) > maxValueLen {
+		if !strings.Contains(v, "{{") && utf8.RuneCountInString(v) > maxValueLen {
 			errs = append(errs, fmt.Errorf(
 				"tag key %q: value exceeds maximum length of %d characters",
 				k, maxValueLen))
@@ -309,86 +466,17 @@ func validateTags(tags map[string]string) []error {
 	return errs
 }
 
-// PostProcess applies configured tags to each AMI in the artifact.
-func (p *PostProcessor) PostProcess(
-	ctx context.Context, ui packer.Ui, artifact packer.Artifact,
-) (packer.Artifact, bool, bool, error) {
-	// Step 1: Builder compatibility check.
-	bid := artifact.BuilderId()
-	if !isSupportedBuilder(bid) {
-		msg := fmt.Sprintf(
-			"unsupported builder %q; supported builders: %v",
-			bid, supportedBuilderIDs())
-		if bid == ami_copy.BuilderId {
-			msg += ". Place ami-tag before ami-copy in the post-processor chain, or use the ami-copy tags option"
-		}
-		return artifact, true, false, fmt.Errorf("%s", msg)
-	}
-
-	// Step 2: Parse artifact ID into (region, ami-id) pairs.
-	amis, err := parseArtifactID(artifact.Id())
-	if err != nil {
-		return artifact, true, false, err
-	}
-
-	// Step 3: Get the base AWS config.
-	awsCfg, err := p.config.AccessConfig.GetAWSConfig(ctx)
-	if err != nil {
-		return artifact, true, false, err
-	}
-
-	// Step 4: Create regional clients and tag each AMI sequentially.
-	clients := make(map[string]tagAPI)
-	for _, a := range amis {
-		client, ok := clients[a.region]
-		if !ok {
-			cfg := awsCfg.Copy()
-			cfg.Region = a.region
-			if p.newClient != nil {
-				client = p.newClient(cfg, a.region)
-			} else {
-				client = ec2.NewFromConfig(cfg)
-			}
-			clients[a.region] = client
-		}
-		if err := tagAMI(ctx, ui, client, a, p.config.Tags, p.retryDelay); err != nil {
-			return artifact, true, false, err
+// isOnlyAMITagsMissing reports whether every error in errs is a
+// missing-variable error that references an AMITags key. This is
+// used to decide whether re-reading DescribeTags might resolve
+// the failure (eventual consistency after AMI creation).
+func isOnlyAMITagsMissing(errs []error) bool {
+	for _, e := range errs {
+		if !strings.Contains(e.Error(), "AMITags") {
+			return false
 		}
 	}
-
-	// All AMIs tagged successfully — pass through the original artifact.
-	return artifact, false, false, nil
-}
-
-// ami is one parsed "region:ami-id" artifact entry.
-type ami struct {
-	id, region string
-}
-
-// supportedBuilderIDs returns the set of builder IDs
-// accepted by the post-processor, for use in error messages.
-func supportedBuilderIDs() []string {
-	return []string{
-		ebs.BuilderId,
-		ebssurrogate.BuilderId,
-		ebsvolume.BuilderId,
-		chroot.BuilderId,
-		instance.BuilderId,
-	}
-}
-
-// isSupportedBuilder reports whether the given builder ID is
-// one of the Amazon builders whose artifacts contain AMI IDs.
-func isSupportedBuilder(id string) bool {
-	switch id {
-	case ebs.BuilderId,
-		ebssurrogate.BuilderId,
-		ebsvolume.BuilderId,
-		chroot.BuilderId,
-		instance.BuilderId:
-		return true
-	}
-	return false
+	return len(errs) > 0
 }
 
 // parseArtifactID splits a comma-separated list of
