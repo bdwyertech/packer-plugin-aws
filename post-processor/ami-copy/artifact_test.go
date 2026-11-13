@@ -2,71 +2,62 @@ package ami_copy
 
 import (
 	"strings"
-	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-// TestArtifactId_GroupsByManifestRegion covers B3: Artifact.Id() must include
-// the per-manifest Region in each region:account:image tuple. With the cross
-// region attribution fix, manifests across multiple regions appear under their
-// own region prefixes (not collapsed under a single source region).
-func TestArtifactId_GroupsByManifestRegion(t *testing.T) {
-	a := &Artifact{
-		CopiedAmis: []*AmiManifest{
-			{Region: "us-east-1", AccountID: "111111111111", ImageID: "ami-east"},
-			{Region: "us-west-1", AccountID: "222222222222", ImageID: "ami-west"},
-		},
-	}
+var _ = Describe("Artifact", func() {
+	Describe("Id", func() {
+		// Artifact.Id() must include per-manifest Region in each
+		// region:account:image tuple.
+		It("includes each manifest's region:account:image tuple", func() {
+			a := &Artifact{
+				CopiedAmis: []*AmiManifest{
+					{Region: "us-east-1", AccountID: "111111111111", ImageID: "ami-east"},
+					{Region: "us-west-1", AccountID: "222222222222", ImageID: "ami-west"},
+				},
+			}
 
-	id := a.Id()
+			id := a.Id()
 
-	if !strings.Contains(id, "us-east-1:111111111111:ami-east") {
-		t.Errorf("B3: expected Artifact.Id() to contain us-east-1:111111111111:ami-east, got %q", id)
-	}
-	if !strings.Contains(id, "us-west-1:222222222222:ami-west") {
-		t.Errorf("B3: expected Artifact.Id() to contain us-west-1:222222222222:ami-west, got %q", id)
-	}
-}
+			Expect(id).To(ContainSubstring("us-east-1:111111111111:ami-east"))
+			Expect(id).To(ContainSubstring("us-west-1:222222222222:ami-west"))
+		})
+	})
 
-// TestArtifactString_GroupsAMIsByRegionHeader covers B4: Artifact.String() must
-// group AMIs under their per-manifest Region headers in the final summary.
-func TestArtifactString_GroupsAMIsByRegionHeader(t *testing.T) {
-	a := &Artifact{
-		CopiedAmis: []*AmiManifest{
-			{Region: "us-east-1", AccountID: "111111111111", ImageID: "ami-east-a"},
-			{Region: "us-east-1", AccountID: "111111111111", ImageID: "ami-east-b"},
-			{Region: "us-west-1", AccountID: "222222222222", ImageID: "ami-west"},
-		},
-	}
+	Describe("String", func() {
+		// Artifact.String() must group AMIs under per-manifest
+		// Region headers in the final summary.
+		It("groups AMIs by region header", func() {
+			a := &Artifact{
+				CopiedAmis: []*AmiManifest{
+					{Region: "us-east-1", AccountID: "111111111111", ImageID: "ami-east-a"},
+					{Region: "us-east-1", AccountID: "111111111111", ImageID: "ami-east-b"},
+					{Region: "us-west-1", AccountID: "222222222222", ImageID: "ami-west"},
+				},
+			}
 
-	out := a.String()
+			out := a.String()
 
-	if !strings.Contains(out, "us-east-1:") {
-		t.Errorf("B4: expected us-east-1 region header in output, got:\n%s", out)
-	}
-	if !strings.Contains(out, "us-west-1:") {
-		t.Errorf("B4: expected us-west-1 region header in output, got:\n%s", out)
-	}
+			Expect(out).To(ContainSubstring("us-east-1:"))
+			Expect(out).To(ContainSubstring("us-west-1:"))
 
-	westIdx := strings.Index(out, "us-west-1:")
-	westAmiIdx := strings.Index(out, "ami-west")
-	if westIdx < 0 || westAmiIdx < 0 || westAmiIdx < westIdx {
-		t.Errorf("B4: expected ami-west to appear after the us-west-1 header, got:\n%s", out)
-	}
+			westIdx := strings.Index(out, "us-west-1:")
+			westAmiIdx := strings.Index(out, "ami-west")
+			Expect(westIdx).To(BeNumerically(">=", 0))
+			Expect(westAmiIdx).To(BeNumerically(">", westIdx))
 
-	eastIdx := strings.Index(out, "us-east-1:")
-	eastAmiAIdx := strings.Index(out, "ami-east-a")
-	eastAmiBIdx := strings.Index(out, "ami-east-b")
-	if eastIdx < 0 || eastAmiAIdx < eastIdx || eastAmiBIdx < eastIdx {
-		t.Errorf("B4: expected ami-east-{a,b} to appear after the us-east-1 header, got:\n%s", out)
-	}
-}
+			eastIdx := strings.Index(out, "us-east-1:")
+			eastAmiAIdx := strings.Index(out, "ami-east-a")
+			eastAmiBIdx := strings.Index(out, "ami-east-b")
+			Expect(eastAmiAIdx).To(BeNumerically(">", eastIdx))
+			Expect(eastAmiBIdx).To(BeNumerically(">", eastIdx))
+		})
 
-// TestArtifactString_EmptyManifests covers the regression case noted in the
-// design: Artifact.String() returns the empty-case sentinel when there are no
-// copied AMIs.
-func TestArtifactString_EmptyManifests(t *testing.T) {
-	a := &Artifact{}
-	if got := a.String(); got != "No AMIs were copied" {
-		t.Errorf("expected empty-manifest sentinel, got %q", got)
-	}
-}
+		It("returns empty-manifest sentinel when there are no copied AMIs", func() {
+			a := &Artifact{}
+			Expect(a.String()).To(Equal("No AMIs were copied"))
+		})
+	})
+})

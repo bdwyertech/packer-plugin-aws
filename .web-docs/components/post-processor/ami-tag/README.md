@@ -103,22 +103,82 @@ build {
 }
 ```
 
+## Template Interpolation
+
+Tag values support Go template expressions that are resolved at PostProcess time
+against builder-generated data. This means `{{ .SourceAMIName }}` and similar
+references work in both JSON and HCL2 templates.
+
+```hcl
+post-processor "aws-ami-tag" {
+  profile = var.aws_profile
+  tags = {
+    "Name"           = "{{ .SourceAMIName }}"
+    "SourceAMI"      = "{{ .SourceAMI }}"
+    "BuildRegion"    = "{{ .BuildRegion }}"
+    "CleanName"      = "{{ clean_resource_name .SourceAMIName }}"
+  }
+}
+```
+
+The available variables depend on the upstream builder. Amazon builders
+(ebs, ebssurrogate, ebsvolume, chroot, instance) typically provide
+`BuildRegion`, `SourceAMI`, `SourceAMICreationDate`, `SourceAMIName`,
+`SourceAMIOwner`, and `SourceAMIOwnerName`. Standard Packer functions like
+`clean_resource_name`, `user`, `build_name`, `template_dir`, and `timestamp`
+are also available.
+
+### AMI Tag Cloning
+
+The `.AMITags` namespace exposes each AMI's existing EC2 tags before this
+post-processor writes. This lets you clone or reference tags that are already
+on the AMI.
+
+```hcl
+post-processor "aws-ami-tag" {
+  profile = var.aws_profile
+  tags = {
+    "ec2:SharedTag/Test" = "{{ .AMITags.Test }}"
+    "CopiedValue"        = "{{ index .AMITags \"a/b c\" }}"
+  }
+}
+```
+
+For tag keys that are not valid Go identifiers (contain `/`, spaces, etc.),
+use `{{ index .AMITags "key" }}` instead of dot notation. Missing `.AMITags`
+keys are retried with bounded backoff (up to 4 re-reads) to handle
+eventual consistency, then fail with an error naming the tag key.
+
 ## How It Works
 
 1. Validates builder compatibility (ebs, ebssurrogate, ebsvolume, chroot, instance)
 2. Parses AMI IDs from the upstream artifact
 3. Establishes an AWS session using the configured credentials
-4. For each AMI, reads existing tags with `DescribeTags` to check the 50-tag limit
-5. Calls `CreateTags` for each AMI with retry on `UnauthorizedOperation`
+4. **Pass 1 (read and render):** For each AMI, reads existing tags with
+   `DescribeTags`, renders template expressions, and validates the result
+   against AWS tag constraints. If any AMI fails rendering or validation,
+   no AMI is tagged.
+5. **Pass 2 (write):** Calls `CreateTags` for each AMI with the pre-rendered
+   tags, with retry on `UnauthorizedOperation`
 6. Passes the original artifact through unchanged to downstream post-processors
+
+The two-pass approach ensures that all AMIs are read and validated before any
+tags are written. A template error or validation failure on one AMI prevents
+tagging on all AMIs in the artifact.
 
 ## Error Handling
 
-- `UnauthorizedOperation` is retried with linear backoff (up to 11 attempts) since IAM changes can be eventually consistent
+- Missing template variables fail with an error naming the tag key and the
+  missing variable
+- Rendered values exceeding 256 characters (or keys exceeding 128) fail
+  validation with an error naming the tag key and its rendered length
+- If any tag fails rendering or validation, no AMI in the artifact is tagged
+- `UnauthorizedOperation` is retried with linear backoff (up to 11 attempts)
+  since IAM changes can be eventually consistent
 - `TagLimitExceeded` is not retried and reports the 50-tag limit clearly
-- If the union of existing and configured tags would exceed 50, the error is reported before calling `CreateTags`
-- Processing halts at the first failure (fail-fast)
-- Tag values are never logged, only keys
+- If the union of existing and configured tags would exceed 50, the error is
+  reported before calling `CreateTags`
+- Errors and logs show tag keys only, never rendered values
 
 ## Notes
 

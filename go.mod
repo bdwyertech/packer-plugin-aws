@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appstream v1.61.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.307.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.3
+	github.com/aws/smithy-go v1.27.2
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/hashicorp/packer-plugin-amazon v1.8.1
 	github.com/hashicorp/packer-plugin-sdk v0.6.13
@@ -16,6 +17,7 @@ require (
 	github.com/onsi/gomega v1.44.0
 	github.com/sourcegraph/conc v0.3.0
 	github.com/zclconf/go-cty v1.19.0
+	pgregory.net/rapid v1.3.0
 )
 
 require (
@@ -61,7 +63,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.31.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6 // indirect
-	github.com/aws/smithy-go v1.27.2 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/bodgit/ntlmssp v0.0.0-20240506230425-31973bb52d9b // indirect
 	github.com/bodgit/windows v1.0.1 // indirect
@@ -173,7 +174,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260622175928-b703f567277d // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	pgregory.net/rapid v1.3.0 // indirect
 )
 
 replace github.com/zclconf/go-cty => github.com/nywilken/go-cty v1.13.3

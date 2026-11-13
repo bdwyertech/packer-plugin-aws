@@ -86,9 +86,10 @@ func (a *Artifact) State(name string) any {
 	return nil
 }
 
+// TODO: accept ctx when the SDK adds DestroyContext
 func (a *Artifact) Destroy() error {
 	for _, ami := range a.CopiedAmis {
-		if err := ami.delete(context.TODO()); err != nil {
+		if err := ami.delete(context.Background()); err != nil {
 			return err
 		}
 	}

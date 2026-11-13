@@ -11,46 +11,35 @@ import (
 	"github.com/sourcegraph/conc/pool"
 
 	"github.com/bdwyertech/packer-plugin-aws/helpers"
-	"github.com/hashicorp/packer-plugin-amazon/builder/common/awserrors"
+	"github.com/hashicorp/packer-plugin-amazon/common/awserrors"
 	"github.com/hashicorp/packer-plugin-sdk/packer"
-	"github.com/hashicorp/packer-plugin-sdk/retry"
 )
+
+// copyAPI is the subset of the EC2 client used by copyOperation and AmiManifest.
+type copyAPI interface {
+	CopyImage(ctx context.Context, params *ec2.CopyImageInput, optFns ...func(*ec2.Options)) (*ec2.CopyImageOutput, error)
+	CreateTags(ctx context.Context, params *ec2.CreateTagsInput, optFns ...func(*ec2.Options)) (*ec2.CreateTagsOutput, error)
+	DescribeImages(ctx context.Context, params *ec2.DescribeImagesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeImagesOutput, error)
+	DeregisterImage(ctx context.Context, params *ec2.DeregisterImageInput, optFns ...func(*ec2.Options)) (*ec2.DeregisterImageOutput, error)
+	DeleteSnapshot(ctx context.Context, params *ec2.DeleteSnapshotInput, optFns ...func(*ec2.Options)) (*ec2.DeleteSnapshotOutput, error)
+}
+
+// Compile-time check: *ec2.Client satisfies copyAPI.
+var _ copyAPI = (*ec2.Client)(nil)
 
 // AmiManifest holds the data about the resulting copied image
 type AmiManifest struct {
-	AccountID string      `json:"account_id"`
-	Region    string      `json:"region"`
-	ImageID   string      `json:"image_id"`
-	client    *ec2.Client `json:"-"`
-}
-
-func (ami *AmiManifest) delete(ctx context.Context) error {
-	image, err := helpers.LocateSingleAMI(ctx, ami.ImageID, ami.client)
-	if err != nil {
-		return err
-	}
-	_, err = ami.client.DeregisterImage(ctx, &ec2.DeregisterImageInput{
-		ImageId: image.ImageId,
-	})
-
-	for _, bdm := range image.BlockDeviceMappings {
-		if bdm.Ebs != nil && bdm.Ebs.SnapshotId != nil {
-			_, err = ami.client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: bdm.Ebs.SnapshotId,
-			})
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return err
+	AccountID string  `json:"account_id"`
+	Region    string  `json:"region"`
+	ImageID   string  `json:"image_id"`
+	client    copyAPI `json:"-"`
 }
 
 // copyOperation holds data and methods related to copying an image.
 type copyOperation struct {
 	ctx                 context.Context
-	client              *ec2.Client
+	client              copyAPI
+	region              string
 	sourceImage         *types.Image
 	sourceRegion        string
 	targetRegion        string
@@ -64,6 +53,8 @@ type copyOperation struct {
 	targetAccountID     string
 	copyDurationMinutes *int64
 	timeoutMinutes      int
+	retryDelay          func(uint) time.Duration
+	waiterOptions       []func(*ec2.ImageAvailableWaiterOptions)
 }
 
 // execute performs the EC2 copy and tags the result.
@@ -119,80 +110,54 @@ func (c *copyOperation) execute(ui packer.Ui) error {
 
 // tagImage copies tags from the source image to the target.
 func (c *copyOperation) tagImage(ui packer.Ui) error {
-	tags := make([]types.Tag, 0, len(c.tags))
-	// Add additional tags
-	for k, v := range c.tags {
-		tags = append(tags, types.Tag{
-			Key:   aws.String(k),
-			Value: aws.String(v),
-		})
-	}
-
+	tags := helpers.ToEC2Tags(c.tags)
 	if len(tags) == 0 {
 		return nil
 	}
 
 	ui.Say(fmt.Sprintf("Adding tags [%s]", c.tags))
 
-	// Retry creating tags for about 2.5 minutes
-	return retry.Config{
-		Tries: 11,
-		ShouldRetry: func(err error) bool {
-			return awserrors.Matches(err, "UnauthorizedOperation", "")
-		},
-		RetryDelay: (&retry.Backoff{InitialBackoff: 200 * time.Millisecond, MaxBackoff: 30 * time.Second, Multiplier: 2}).Linear,
-	}.Run(c.ctx, func(ctx context.Context) error {
-		_, err := c.client.CreateTags(ctx, &ec2.CreateTagsInput{
-			Resources: []string{c.copiedImageID},
-			Tags:      tags,
-		})
-
+	mapErr := func(err error) error {
 		if awserrors.Matches(err, "InvalidAMIID.NotFound", "") ||
 			awserrors.Matches(err, "InvalidSnapshot.NotFound", "") {
 			return nil
 		}
-
 		return err
-	})
+	}
+
+	return helpers.CreateTagsWithRetry(c.ctx, c.client, []string{c.copiedImageID}, tags, c.retryDelay, mapErr)
 }
 
-// waitForAvailable waits for the copied image to become available.
+// waitForAvailable waits for the copied image to become available
+// using the SDK v2 ec2.NewImageAvailableWaiter.
 func (c *copyOperation) waitForAvailable(ui packer.Ui) error {
 	ui.Say("Waiting for image to be in available state")
 
-	timeout := c.timeoutMinutes
-	if timeout == 0 {
-		timeout = 30 // Default to 30 minutes
+	maxWait := time.Duration(c.timeoutMinutes) * time.Minute
+	if maxWait == 0 {
+		maxWait = 30 * time.Minute
 	}
 
-	var imageName string
-	for i := 1; i <= timeout; i++ {
-		image, err := helpers.LocateSingleAMI(c.ctx, c.copiedImageID, c.client)
-		if err != nil && image == nil {
-			return err
-		}
-
-		imageName = fmt.Sprintf("%s:%s:%s", c.client.Options().Region, *image.OwnerId, *image.ImageId)
-
-		switch image.State {
-		case types.ImageStateAvailable:
-			return nil
-		case types.ImageStatePending:
-			// continue waiting
-		default:
-			return fmt.Errorf("AMI copy failed: image %s transitioned to %s state", imageName, image.State)
-		}
-
-		ui.Say(fmt.Sprintf("Waiting one minute (%d/%d) for AMI to become available, current state: %s for image %s",
-			i, timeout, image.State, imageName))
-		time.Sleep(time.Duration(1) * time.Minute)
+	waiter := ec2.NewImageAvailableWaiter(c.client, c.waiterOptions...)
+	err := waiter.Wait(c.ctx, &ec2.DescribeImagesInput{
+		ImageIds: []string{c.copiedImageID},
+	}, maxWait)
+	if err != nil {
+		return fmt.Errorf("waiting for image %s: %w", c.copiedImageID, err)
 	}
+	return nil
+}
 
-	return fmt.Errorf("timed out waiting for image %s", imageName)
+func (ami *AmiManifest) delete(ctx context.Context) error {
+	image, err := helpers.LocateSingleAMI(ctx, ami.ImageID, ami.client)
+	if err != nil {
+		return err
+	}
+	return helpers.DeleteAMIAndSnapshots(ctx, ami.client, image, nil)
 }
 
 // executeCopies runs all copy operations concurrently.
-func (p PostProcessor) executeCopies(copies []*copyOperation, ui packer.Ui) ([]*AmiManifest, packer.MultiError) {
+func (p *PostProcessor) executeCopies(copies []*copyOperation, ui packer.Ui) ([]*AmiManifest, packer.MultiError) {
 	copyCount := len(copies)
 	amiManifests := make(chan *AmiManifest, copyCount)
 	var errs packer.MultiError

@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -12,7 +13,7 @@ import (
 )
 
 // LocateSingleAMI tries to locate a single AMI for the given ID.
-func LocateSingleAMI(ctx context.Context, id string, ec2Conn *ec2.Client) (*types.Image, error) {
+func LocateSingleAMI(ctx context.Context, id string, ec2Conn DescribeImagesAPI) (*types.Image, error) {
 	if output, err := ec2Conn.DescribeImages(ctx, &ec2.DescribeImagesInput{
 		Filters: []types.Filter{
 			{
@@ -32,7 +33,7 @@ func LocateSingleAMI(ctx context.Context, id string, ec2Conn *ec2.Client) (*type
 // IsImageSharedWith checks whether the given AMI (imageID) in the source account
 // is shared with the specified target accountID. It returns true if the AMI is
 // explicitly shared with the account, or if it is public.
-func IsImageSharedWith(ctx context.Context, image *types.Image, accountID string, ec2Conn *ec2.Client) (bool, error) {
+func IsImageSharedWith(ctx context.Context, image *types.Image, accountID string, ec2Conn ShareImageAPI) (bool, error) {
 	out, err := ec2Conn.DescribeImageAttribute(ctx, &ec2.DescribeImageAttributeInput{
 		ImageId:   image.ImageId,
 		Attribute: types.ImageAttributeNameLaunchPermission,
@@ -57,7 +58,7 @@ func IsImageSharedWith(ctx context.Context, image *types.Image, accountID string
 
 // EnsureImageSharedWith ensures the given AMI (imageID) in the source account
 // is shared with the target accountID.
-func EnsureImageSharedWith(ctx context.Context, image *types.Image, accountID *string, ec2Conn *ec2.Client) error {
+func EnsureImageSharedWith(ctx context.Context, image *types.Image, accountID *string, ec2Conn ShareImageAPI) error {
 	if shared, err := IsImageSharedWith(ctx, image, *accountID, ec2Conn); err != nil {
 		return err
 	} else if shared {
@@ -100,5 +101,43 @@ func EnsureImageSharedWith(ctx context.Context, image *types.Image, accountID *s
 	if errs != nil && len(errs.Errors) != 0 {
 		return errs
 	}
+	return nil
+}
+
+// DeleteAMIAndSnapshots deregisters an AMI and deletes its EBS snapshots.
+// onSnapshot (may be nil) is called before each snapshot delete.
+func DeleteAMIAndSnapshots(ctx context.Context, client DeleteAMIAPI, image *types.Image, onSnapshot func(string)) error {
+	if image == nil {
+		return errors.New("image must not be nil")
+	}
+	if image.ImageId == nil {
+		return errors.New("image.ImageId must not be nil")
+	}
+
+	// Deregister the AMI
+	_, err := client.DeregisterImage(ctx, &ec2.DeregisterImageInput{
+		ImageId: image.ImageId,
+	})
+	if err != nil {
+		return fmt.Errorf("deregister image %s: %w", *image.ImageId, err)
+	}
+
+	// Delete associated snapshots
+	for _, bdm := range image.BlockDeviceMappings {
+		if bdm.Ebs == nil || bdm.Ebs.SnapshotId == nil {
+			continue
+		}
+		snapID := *bdm.Ebs.SnapshotId
+		if onSnapshot != nil {
+			onSnapshot(snapID)
+		}
+		_, err := client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+			SnapshotId: &snapID,
+		})
+		if err != nil {
+			return fmt.Errorf("delete snapshot %s: %w", snapID, err)
+		}
+	}
+
 	return nil
 }

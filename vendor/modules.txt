@@ -1309,4 +1309,5 @@ google.golang.org/protobuf/types/known/timestamppb
 google.golang.org/protobuf/types/known/wrapperspb
 # pgregory.net/rapid v1.3.0
 ## explicit; go 1.23
+pgregory.net/rapid
 # github.com/zclconf/go-cty => github.com/nywilken/go-cty v1.13.3

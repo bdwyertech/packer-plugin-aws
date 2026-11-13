@@ -6,6 +6,7 @@ This plugin provides Packer components for working with AWS services:
 - **EC2 Data Sources**: Query VPC subnets and other EC2 resources in a fashion similar to Terraform
 - **AppStream 2.0 Post-Processor**: Share and copy AppStream images across accounts and regions
 - **AMI Post-Processor**: Delete AMIs and their associated EBS snapshots
+- **AMI Tag Post-Processor**: Apply EC2 tags exclusively to AMI resources (not snapshots), with support for `ec2:SharedTag/` keys
 - **AMI Watermark Post-Processor**: Attach provenance watermarks to AMIs
 
 ## Components
@@ -59,6 +60,12 @@ Copies AWS AMIs to other AWS accounts and/or regions. Useful for distributing AM
 Deletes AWS AMIs and their associated EBS snapshots. Useful for cleanup operations or removing temporary AMIs created during multi-step build processes.
 
 [Full Post-Processor Documentation](docs/post-processors/ami-delete.mdx)
+
+### Post-Processor: `ami-tag`
+
+Applies EC2 tags exclusively to AMI resources produced by Amazon builders. Unlike builder-level `tags`, this targets only the AMI (not snapshots), enabling `ec2:SharedTag/` prefixed keys visible to all accounts the AMI is shared with. Ideal for golden image pipelines with shared provenance tags.
+
+[Full Post-Processor Documentation](docs/post-processors/ami-tag.mdx)
 
 ### Post-Processor: `ami-watermark`
 

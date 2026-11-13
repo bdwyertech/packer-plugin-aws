@@ -17,18 +17,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/hashicorp/hcl/v2/hcldec"
-	"github.com/hashicorp/packer-plugin-amazon/builder/chroot"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebs"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume"
-	"github.com/hashicorp/packer-plugin-amazon/builder/instance"
 	"github.com/hashicorp/packer-plugin-amazon/common/awserrors"
 	"github.com/hashicorp/packer-plugin-sdk/common"
 	"github.com/hashicorp/packer-plugin-sdk/packer"
-	"github.com/hashicorp/packer-plugin-sdk/retry"
 	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
 
+	"github.com/bdwyertech/packer-plugin-aws/helpers"
 	ami_copy "github.com/bdwyertech/packer-plugin-aws/post-processor/ami-copy"
 
 	awscommon "github.com/hashicorp/packer-plugin-amazon/builder/common"
@@ -37,19 +32,6 @@ import (
 // BuilderId is the ID of this post processor.
 // nolint: golint
 const BuilderId = "packer.post-processor.ami-tag"
-
-const (
-	maxTags        = 50
-	reservedPrefix = "aws:"
-	maxKeyLen      = 128
-	maxValueLen    = 256
-	retryTries     = 11
-)
-
-var (
-	errMergedTagLimit = errors.New("merged tag count exceeds limit")
-	errTagLimitAWS    = errors.New("AWS TagLimitExceeded")
-)
 
 // Config is the post-processor configuration with interpolation supported.
 type Config struct {
@@ -127,7 +109,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 	}
 
 	// Step 2: Parse artifact ID into (region, ami-id) pairs.
-	amis, err := parseArtifactID(artifact.Id())
+	amis, err := helpers.ParseArtifactID(artifact.Id())
 	if err != nil {
 		return artifact, true, false, err
 	}
@@ -143,7 +125,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 
 	// Pass 1 — per AMI: render and validate.
 	type amiResult struct {
-		ami      ami
+		ami      helpers.AMIRef
 		client   tagAPI
 		rendered map[string]string
 	}
@@ -152,21 +134,20 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 	warnedAMITags := false
 	clients := make(map[string]tagAPI)
 	for _, a := range amis {
-		client, ok := clients[a.region]
+		client, ok := clients[a.Region]
 		if !ok {
-			cfg := awsCfg.Copy()
-			cfg.Region = a.region
+			cfg := helpers.RegionalConfig(awsCfg, a.Region)
 			if p.newClient != nil {
-				client = p.newClient(cfg, a.region)
+				client = p.newClient(cfg, a.Region)
 			} else {
 				client = ec2.NewFromConfig(cfg)
 			}
-			clients[a.region] = client
+			clients[a.Region] = client
 		}
-		existing, err := existingTags(ctx, client, a.id)
+		existing, err := existingTags(ctx, client, a.ID)
 		if err != nil {
 			allErrors = append(allErrors, fmt.Errorf(
-				"error reading tags for AMI %s in %s: %w", a.id, a.region, err))
+				"error reading tags for AMI %s in %s: %w", a.ID, a.Region, err))
 			continue
 		}
 		d := maps.Clone(data)
@@ -182,17 +163,17 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		for attempt := uint(0); attempt < 4 && isOnlyAMITagsMissing(errs); attempt++ {
 			ui.Say(fmt.Sprintf(
 				"AMI %s: waiting for tags to propagate, retry %d/4",
-				a.id, attempt+1))
+				a.ID, attempt+1))
 			if p.retryDelay != nil {
 				time.Sleep(p.retryDelay(attempt))
 			} else {
 				time.Sleep(time.Duration(1<<attempt) * time.Second)
 			}
-			re, reErr := existingTags(ctx, client, a.id)
+			re, reErr := existingTags(ctx, client, a.ID)
 			if reErr != nil {
 				errs = []error{fmt.Errorf(
 					"error reading tags for AMI %s in %s: %w",
-					a.id, a.region, reErr)}
+					a.ID, a.Region, reErr)}
 				break
 			}
 			existing = re
@@ -206,7 +187,7 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		if n := mergedKeyCount(existing, rendered); n > maxTags {
 			allErrors = append(allErrors, fmt.Errorf(
 				"AMI %s in %s has %d existing tags; applying would result in %d (limit 50): %w",
-				a.id, a.region, len(existing), n, errMergedTagLimit))
+				a.ID, a.Region, len(existing), n, errMergedTagLimit))
 		}
 		results = append(results, amiResult{a, client, rendered})
 	}
@@ -222,60 +203,50 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 			keys = append(keys, k)
 		}
 		ui.Say(fmt.Sprintf("Tagging AMI %s in %s with keys %v",
-			r.ami.id, r.ami.region, keys))
+			r.ami.ID, r.ami.Region, keys))
 		ec2Tags := toEC2Tags(r.rendered)
 		if err := retryCreateTags(ctx, r.client, r.ami, ec2Tags, p.retryDelay); err != nil {
 			return artifact, true, false, fmt.Errorf(
-				"error tagging AMI %s in %s: %w", r.ami.id, r.ami.region, err)
+				"error tagging AMI %s in %s: %w", r.ami.ID, r.ami.Region, err)
 		}
-		ui.Say(fmt.Sprintf("Tagged AMI %s in %s", r.ami.id, r.ami.region))
+		ui.Say(fmt.Sprintf("Tagged AMI %s in %s", r.ami.ID, r.ami.Region))
 	}
 
 	// All AMIs tagged successfully — pass through the original artifact.
 	return artifact, false, false, nil
 }
 
-// ami is one parsed "region:ami-id" artifact entry.
-type ami struct {
-	id, region string
-}
+const (
+	maxTags        = 50
+	reservedPrefix = "aws:"
+	maxKeyLen      = 128
+	maxValueLen    = 256
+)
+
+// retryTries is kept as a package-level alias for backward compatibility
+// with tests that reference it.
+var retryTries = helpers.TagRetryTries
+
+var (
+	errMergedTagLimit = errors.New("merged tag count exceeds limit")
+	errTagLimitAWS    = errors.New("AWS TagLimitExceeded")
+)
 
 // supportedBuilderIDs returns the set of builder IDs
 // accepted by the post-processor, for use in error messages.
 func supportedBuilderIDs() []string {
-	return []string{
-		ebs.BuilderId,
-		ebssurrogate.BuilderId,
-		ebsvolume.BuilderId,
-		chroot.BuilderId,
-		instance.BuilderId,
-	}
+	return slices.Clone(helpers.AMIBuilderIDs)
 }
 
 // isSupportedBuilder reports whether the given builder ID is
 // one of the Amazon builders whose artifacts contain AMI IDs.
 func isSupportedBuilder(id string) bool {
-	switch id {
-	case ebs.BuilderId,
-		ebssurrogate.BuilderId,
-		ebsvolume.BuilderId,
-		chroot.BuilderId,
-		instance.BuilderId:
-		return true
-	}
-	return false
+	return helpers.IsAMIBuilder(id)
 }
 
 // toEC2Tags converts a string map to a sorted slice of EC2 Tag structs.
 func toEC2Tags(tags map[string]string) []ec2types.Tag {
-	result := make([]ec2types.Tag, 0, len(tags))
-	for _, k := range slices.Sorted(maps.Keys(tags)) {
-		result = append(result, ec2types.Tag{
-			Key:   aws.String(k),
-			Value: aws.String(tags[k]),
-		})
-	}
-	return result
+	return helpers.ToEC2Tags(tags)
 }
 
 // tagAPI is the subset of the EC2 client used by the post-processor.
@@ -323,109 +294,19 @@ func existingTags(ctx context.Context, api tagAPI, id string) (map[string]string
 }
 
 // retryCreateTags calls CreateTags with retry on UnauthorizedOperation.
-// TagLimitExceeded is not retried. RetryExhaustedError is unwrapped so
-// the underlying AWS error remains matchable by awserrors.Matches.
-func retryCreateTags(ctx context.Context, api tagAPI, a ami,
+// TagLimitExceeded is not retried but is wrapped with errTagLimitAWS.
+// Delegates to helpers.CreateTagsWithRetry.
+func retryCreateTags(ctx context.Context, api tagAPI, a helpers.AMIRef,
 	tags []ec2types.Tag, delay func(uint) time.Duration) error {
-	var retryDelay func() time.Duration
-	if delay == nil {
-		retryDelay = (&retry.Backoff{
-			InitialBackoff: 200 * time.Millisecond,
-			MaxBackoff:     30 * time.Second,
-			Multiplier:     2,
-		}).Linear
-	} else {
-		var attempt uint
-		retryDelay = func() time.Duration {
-			d := delay(attempt)
-			attempt++
-			return d
-		}
-	}
-	err := retry.Config{
-		Tries: retryTries,
-		ShouldRetry: func(e error) bool {
-			return awserrors.Matches(e, "UnauthorizedOperation", "")
-		},
-		RetryDelay: retryDelay,
-	}.Run(ctx, func(ctx context.Context) error {
-		_, e := api.CreateTags(ctx, &ec2.CreateTagsInput{
-			Resources: []string{a.id},
-			Tags:      tags,
-		})
-		if awserrors.Matches(e, "TagLimitExceeded", "") {
+	mapErr := func(err error) error {
+		if awserrors.Matches(err, "TagLimitExceeded", "") {
 			return fmt.Errorf(
 				"AMI %s in %s would exceed the 50-tag limit: %w: %w",
-				a.id, a.region, errTagLimitAWS, e)
+				a.ID, a.Region, errTagLimitAWS, err)
 		}
-		return e
-	})
-
-	// RetryExhaustedError (packer-plugin-sdk v0.6.13) has no Unwrap
-	// method, so errors.As/awserrors.Matches can't see the inner AWS
-	// error. Unwrap .Err so the cause is preserved in the chain.
-	if re := (*retry.RetryExhaustedError)(nil); errors.As(err, &re) {
-		err = fmt.Errorf("retries exhausted after %d attempts: %w",
-			retryTries, re.Err)
+		return err
 	}
-	return err
-}
-
-// tagAMI orchestrates the tagging of a single AMI:
-// log, read existing tags, check merged count, call
-// CreateTags (with retry), and report the result.
-func tagAMI(ctx context.Context, ui packer.Ui,
-	api tagAPI, a ami, tags map[string]string,
-	delay func(uint) time.Duration) error {
-
-	// Step 1: Log the start with sorted keys (never values).
-	keys := make([]string, 0, len(tags))
-	for _, k := range slices.Sorted(maps.Keys(tags)) {
-		keys = append(keys, k)
-	}
-	ui.Say(fmt.Sprintf(
-		"Tagging AMI %s in %s with keys %v",
-		a.id, a.region, keys))
-
-	// Step 2: Read existing tags.
-	existing, err := existingTags(ctx, api, a.id)
-	if err != nil {
-		wrapped := fmt.Errorf(
-			"error reading tags for AMI %s in %s: %w",
-			a.id, a.region, err)
-		ui.Error(wrapped.Error())
-		return wrapped
-	}
-
-	// Step 3: Check merged count.
-	n := mergedKeyCount(existing, tags)
-	if n > maxTags {
-		wrapped := fmt.Errorf(
-			"AMI %s in %s has %d existing tags; "+
-				"applying would result in %d (limit 50): %w",
-			a.id, a.region, len(existing), n,
-			errMergedTagLimit)
-		ui.Error(wrapped.Error())
-		return wrapped
-	}
-
-	// Step 4: Convert to EC2 tags for the API call.
-	ec2Tags := toEC2Tags(tags)
-
-	// Retry block: CreateTags with retry
-	// (implemented in task 3.4).
-	err = retryCreateTags(ctx, api, a, ec2Tags, delay)
-
-	// Step 5: Handle result.
-	if err != nil {
-		wrapped := fmt.Errorf(
-			"error tagging AMI %s in %s: %w",
-			a.id, a.region, err)
-		ui.Error(wrapped.Error())
-		return wrapped
-	}
-	ui.Say(fmt.Sprintf("Tagged AMI %s in %s", a.id, a.region))
-	return nil
+	return helpers.CreateTagsWithRetry(ctx, api, []string{a.ID}, tags, delay, mapErr)
 }
 
 // validateTags checks that the tag map meets AWS constraints.
@@ -477,30 +358,4 @@ func isOnlyAMITagsMissing(errs []error) bool {
 		}
 	}
 	return len(errs) > 0
-}
-
-// parseArtifactID splits a comma-separated list of
-// "region:ami-id" entries into an ami slice.
-// It returns a descriptive error for empty input, entries
-// without exactly one ':', or entries with empty parts.
-func parseArtifactID(id string) ([]ami, error) {
-	if id == "" {
-		return nil, fmt.Errorf("artifact ID is empty")
-	}
-	entries := strings.Split(id, ",")
-	amis := make([]ami, 0, len(entries))
-	for _, entry := range entries {
-		parts := strings.SplitN(entry, ":", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf(
-				"artifact entry %q: expected region:ami-id", entry)
-		}
-		if parts[0] == "" || parts[1] == "" {
-			return nil, fmt.Errorf(
-				"artifact entry %q: region and ami-id must not be empty",
-				entry)
-		}
-		amis = append(amis, ami{region: parts[0], id: parts[1]})
-	}
-	return amis, nil
 }

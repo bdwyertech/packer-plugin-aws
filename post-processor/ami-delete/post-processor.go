@@ -6,18 +6,11 @@ package ami_delete
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2/hcldec"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-
-	"github.com/hashicorp/packer-plugin-amazon/builder/chroot"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebs"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume"
-	"github.com/hashicorp/packer-plugin-amazon/builder/instance"
 
 	"github.com/hashicorp/packer-plugin-sdk/common"
 	"github.com/hashicorp/packer-plugin-sdk/packer"
@@ -31,7 +24,7 @@ import (
 
 // BuilderId is the ID of this post processor.
 // nolint: golint
-const BuilderId = "packer.post-processor.aws-ami-delete"
+const BuilderId = "packer.post-processor.ami-delete"
 
 // Config is the post-processor configuration with interpolation supported.
 // See https://www.packer.io/docs/builders/amazon.html for details.
@@ -46,6 +39,9 @@ type Config struct {
 // PostProcessor implements Packer's PostProcessor interface.
 type PostProcessor struct {
 	config Config
+
+	// deleteAMI is a test hook. When nil, defaults to helpers.DeleteAMIAndSnapshots.
+	deleteAMI func(ctx context.Context, client helpers.DeleteAMIAPI, image *types.Image, onSnapshot func(string)) error
 }
 
 var _ packer.PostProcessor = new(PostProcessor)
@@ -80,49 +76,41 @@ func (p *PostProcessor) Configure(raws ...any) error {
 // PostProcess will delete the AMI
 func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
 	// Ensure we're being called from a supported builder
-	switch artifact.BuilderId() {
-	case ebs.BuilderId,
-		ebssurrogate.BuilderId,
-		ebsvolume.BuilderId,
-		chroot.BuilderId,
-		instance.BuilderId:
-		break
-	default:
-		return artifact, false, false, fmt.Errorf("unexpected artifact type: %s\nCan only export from Amazon builders", artifact.BuilderId())
+	if !helpers.IsAMIBuilder(artifact.BuilderId()) {
+		return artifact, true, false, fmt.Errorf(
+			"unexpected artifact type: %s\nCan only export from Amazon builders",
+			artifact.BuilderId(),
+		)
 	}
 
 	awsCfg, err := p.config.AccessConfig.GetAWSConfig(ctx)
 	if err != nil {
-		return artifact, false, false, err
+		return artifact, true, false, err
 	}
 
 	deletedAmis := make(map[string][]string)
-	amis := amisFromArtifactID(artifact.Id())
-	for _, ami := range amis {
-		var img *types.Image
-		cfg := awsCfg.Copy()
-		cfg.Region = ami.region
+	amis, err := helpers.ParseArtifactID(artifact.Id())
+	if err != nil {
+		return artifact, true, false, err
+	}
+	for _, ref := range amis {
+		cfg := helpers.RegionalConfig(awsCfg, ref.Region)
 		client := ec2.NewFromConfig(cfg)
-		if img, err = helpers.LocateSingleAMI(ctx, ami.id, client); err != nil || img == nil {
-			return artifact, false, false, err
+		img, err := helpers.LocateSingleAMI(ctx, ref.ID, client)
+		if err != nil || img == nil {
+			return artifact, true, false, err
 		}
 		ui.Sayf("Deregistering %s", *img.ImageId)
-		if _, err = client.DeregisterImage(ctx, &ec2.DeregisterImageInput{
-			ImageId: img.ImageId,
+		deleteFn := p.deleteAMI
+		if deleteFn == nil {
+			deleteFn = helpers.DeleteAMIAndSnapshots
+		}
+		if err := deleteFn(ctx, client, img, func(snapID string) {
+			ui.Sayf("Deleting snapshot %s...", snapID)
 		}); err != nil {
-			return artifact, false, false, err
+			return artifact, true, false, err
 		}
-		deletedAmis[ami.region] = append(deletedAmis[ami.region], ami.id)
-		for _, bdm := range img.BlockDeviceMappings {
-			if bdm.Ebs != nil && bdm.Ebs.SnapshotId != nil {
-				ui.Sayf("Deleting %s", *bdm.Ebs.SnapshotId)
-				if _, err = client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-					SnapshotId: bdm.Ebs.SnapshotId,
-				}); err != nil {
-					return artifact, false, false, err
-				}
-			}
-		}
+		deletedAmis[ref.Region] = append(deletedAmis[ref.Region], ref.ID)
 	}
 
 	return &Artifact{
@@ -130,18 +118,4 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		BuilderIdValue: BuilderId,
 		StateData:      make(map[string]any),
 	}, true, true, nil
-}
-
-// ami encapsulates simplistic details about an AMI.
-type ami struct {
-	id, region string
-}
-
-// amisFromArtifactID returns an AMI slice from a Packer artifact id.
-func amisFromArtifactID(artifactID string) (amis []*ami) {
-	for amiStr := range strings.SplitSeq(artifactID, ",") {
-		pair := strings.SplitN(amiStr, ":", 2)
-		amis = append(amis, &ami{region: pair[0], id: pair[1]})
-	}
-	return amis
 }

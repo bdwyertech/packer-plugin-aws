@@ -9,13 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2/hcldec"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/hashicorp/packer-plugin-sdk/common"
@@ -25,12 +25,7 @@ import (
 
 	"github.com/bdwyertech/packer-plugin-aws/helpers"
 
-	"github.com/hashicorp/packer-plugin-amazon/builder/chroot"
 	awscommon "github.com/hashicorp/packer-plugin-amazon/builder/common"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebs"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume"
-	"github.com/hashicorp/packer-plugin-amazon/builder/instance"
 )
 
 // BuilderId is the ID of this post processor.
@@ -93,6 +88,8 @@ type Target struct {
 // PostProcessor implements Packer's PostProcessor interface.
 type PostProcessor struct {
 	config Config
+	// locateAMI is a test hook for LocateSingleAMI. nil means helpers.LocateSingleAMI.
+	locateAMI func(ctx context.Context, id string, client helpers.DescribeImagesAPI) (*types.Image, error)
 }
 
 var _ packer.PostProcessor = new(PostProcessor)
@@ -124,6 +121,15 @@ func (p *PostProcessor) Configure(raws ...any) error {
 		p.config.KeepArtifact = pkrconfig.TriTrue
 	}
 
+	var errs *packer.MultiError
+	errs = packer.MultiErrorAppend(errs, p.config.AccessConfig.Prepare(&p.config.PackerConfig)...)
+	for i := range p.config.Targets {
+		errs = packer.MultiErrorAppend(errs, p.config.Targets[i].AccessConfig.Prepare(&p.config.PackerConfig)...)
+	}
+	if errs != nil && len(errs.Errors) > 0 {
+		return errs
+	}
+
 	return nil
 }
 
@@ -133,42 +139,41 @@ func (p *PostProcessor) Configure(raws ...any) error {
 // default EBS KMS key if unset. Tags will be copied with the image.
 //
 // Copies are executed concurrently. This concurrency is unlimited unless
-// controller by `copy_concurrency`.
+// controlled by `copy_concurrency`.
 func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
 	keepArtifactBool := p.config.KeepArtifact.True()
 
 	// Ensure we're being called from a supported builder
-	switch artifact.BuilderId() {
-	case ebs.BuilderId,
-		ebssurrogate.BuilderId,
-		ebsvolume.BuilderId,
-		chroot.BuilderId,
-		instance.BuilderId:
-		break
-	default:
-		return artifact, keepArtifactBool, false, fmt.Errorf("unexpected artifact type: %s\nCan only export from Amazon builders", artifact.BuilderId())
+	if !helpers.IsAMIBuilder(artifact.BuilderId()) {
+		return artifact, true, false, fmt.Errorf("unexpected artifact type: %s\nCan only export from Amazon builders", artifact.BuilderId())
 	}
 
 	// Get AWS config
 	awsCfg, err := p.config.AccessConfig.GetAWSConfig(ctx)
 	if err != nil {
-		return artifact, keepArtifactBool, false, err
+		return artifact, true, false, err
 	}
 
 	// Parse AMIs from artifact
-	amis := amisFromArtifactID(artifact.Id())
+	amis, err := helpers.ParseArtifactID(artifact.Id())
+	if err != nil {
+		return artifact, true, false, fmt.Errorf("parsing artifact ID: %w", err)
+	}
 
 	// Build list of copy operations
 	var copies []*copyOperation
-	for _, ami := range amis {
+	for _, ref := range amis {
 		// Get source image
-		cfg := awsCfg.Copy()
-		cfg.Region = ami.region
+		cfg := helpers.RegionalConfig(awsCfg, ref.Region)
 		client := ec2.NewFromConfig(cfg)
 
-		source, err := helpers.LocateSingleAMI(ctx, ami.id, client)
+		locateFn := p.locateAMI
+		if locateFn == nil {
+			locateFn = helpers.LocateSingleAMI
+		}
+		source, err := locateFn(ctx, ref.ID, client)
 		if err != nil || source == nil {
-			return artifact, keepArtifactBool, false, err
+			return artifact, true, false, err
 		}
 		// Create copy operations for each target
 		for _, tgt := range p.config.Targets {
@@ -187,7 +192,6 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 				ui.Error(fmt.Sprintf("unable to resolve target account ID for target (skipping): %v", err))
 				continue
 			}
-			// ui.Sayf("Resolved target ARN: %s", *targetId.Arn)
 
 			// Ensure that the source AMI is shared with the resolved target account
 			if err = helpers.EnsureImageSharedWith(ctx, source, targetId.Account, client); err != nil {
@@ -197,10 +201,11 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 			copy := &copyOperation{
 				ctx:                 ctx,
 				client:              targetClient,
+				region:              targetCfg.Region,
 				sourceImage:         source,
-				sourceRegion:        ami.region,
+				sourceRegion:        ref.Region,
 				targetRegion:        targetCfg.Region,
-				sourceImageID:       ami.id,
+				sourceImageID:       ref.ID,
 				ensureAvailable:     p.config.EnsureAvailable,
 				tagsOnly:            p.config.TagsOnly,
 				tags:                p.config.AMITags,
@@ -227,10 +232,11 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 			copy := &copyOperation{
 				ctx:                 ctx,
 				client:              targetClient,
+				region:              targetCfg.Region,
 				sourceImage:         source,
-				sourceRegion:        ami.region,
+				sourceRegion:        ref.Region,
 				targetRegion:        targetCfg.Region,
-				sourceImageID:       ami.id,
+				sourceImageID:       ref.ID,
 				ensureAvailable:     p.config.EnsureAvailable,
 				tagsOnly:            p.config.TagsOnly,
 				tags:                p.config.AMITags,
@@ -256,21 +262,6 @@ func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact 
 		BuilderIdValue: BuilderId,
 		StateData:      make(map[string]any),
 	}, keepArtifactBool, false, nil
-}
-
-// ami encapsulates simplistic details about an AMI.
-type ami struct {
-	id     string
-	region string
-}
-
-// amisFromArtifactID returns an AMI slice from a Packer artifact id.
-func amisFromArtifactID(artifactID string) (amis []*ami) {
-	for amiStr := range strings.SplitSeq(artifactID, ",") {
-		pair := strings.SplitN(amiStr, ":", 2)
-		amis = append(amis, &ami{region: pair[0], id: pair[1]})
-	}
-	return amis
 }
 
 func writeManifests(output string, manifests []*AmiManifest) error {

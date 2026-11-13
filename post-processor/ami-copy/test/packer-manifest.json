@@ -1,0 +1,83 @@
+{
+  "builds": [
+    {
+      "name": "el9",
+      "builder_type": "amazon-ebs",
+      "build_time": 1765740207,
+      "files": null,
+      "artifact_id": "us-east-1:ami-0dd917c69ade21ffc",
+      "packer_run_uuid": "9aef0d64-701a-e95c-456e-0ebccd409cf8",
+      "custom_data": {
+        "BuildID": "0a904292-b940-4f62-ac76-228e1ef30cf5",
+        "BuildTime": "14-Dec-2025__1915UTC",
+        "Name": "packer-test-el-9.7-2512.14.1915"
+      }
+    },
+    {
+      "name": "el9",
+      "builder_type": "amazon-ebs",
+      "build_time": 1765742103,
+      "files": null,
+      "artifact_id": "us-east-1:ami-0570ba9db21890ed6",
+      "packer_run_uuid": "44f7e6cd-ffad-5da2-1d34-3687bf7ff605",
+      "custom_data": {
+        "BuildID": "203e919f-3ad9-46b2-bb36-ccf39c007076",
+        "BuildTime": "14-Dec-2025__1947UTC",
+        "Name": "packer-test-el-9.7-2512.14.1947"
+      }
+    },
+    {
+      "name": "el9",
+      "builder_type": "amazon-ebs",
+      "build_time": 1765745392,
+      "files": null,
+      "artifact_id": "us-east-1:ami-0d7d601996d7469f4",
+      "packer_run_uuid": "4189c122-a843-891d-5cc4-52bedec59d57",
+      "custom_data": {
+        "BuildID": "22551c61-5987-4acf-a2b2-104aea77e851",
+        "BuildTime": "14-Dec-2025__2043UTC",
+        "Name": "packer-test-el-9.7-2512.14.2043"
+      }
+    },
+    {
+      "name": "el9",
+      "builder_type": "amazon-ebs",
+      "build_time": 1765752842,
+      "files": null,
+      "artifact_id": "us-east-1:ami-00714b9b9c2ae0a5b",
+      "packer_run_uuid": "9d575073-b787-74bf-dc8a-25021a5467ae",
+      "custom_data": {
+        "BuildID": "a3494371-8d83-4bcf-b339-22857c3bd21c",
+        "BuildTime": "14-Dec-2025__2246UTC",
+        "Name": "packer-test-el-9.7-2512.14.2246"
+      }
+    },
+    {
+      "name": "el9",
+      "builder_type": "amazon-ebs",
+      "build_time": 1765756671,
+      "files": null,
+      "artifact_id": "us-east-1:ami-05bce5804cf237928",
+      "packer_run_uuid": "4becbb50-d570-5e40-941d-3459b3744e6f",
+      "custom_data": {
+        "BuildID": "2b740e82-869c-43f9-a2f7-3f44d9d01d07",
+        "BuildTime": "14-Dec-2025__2351UTC",
+        "Name": "packer-test-el-9.7-2512.14.2351"
+      }
+    },
+    {
+      "name": "el9",
+      "builder_type": "amazon-ebs",
+      "build_time": 1765758483,
+      "files": null,
+      "artifact_id": "us-east-1:ami-098eea572483a088c",
+      "packer_run_uuid": "0d9a00b0-9baa-9301-03c9-b3058ca9fea9",
+      "custom_data": {
+        "BuildID": "11239074-d0ef-4521-8e90-a792abcb482e",
+        "BuildTime": "15-Dec-2025__0021UTC",
+        "Name": "packer-test-el-9.7-2512.15.0021"
+      }
+    }
+  ],
+  "last_run_uuid": "0d9a00b0-9baa-9301-03c9-b3058ca9fea9"
+}

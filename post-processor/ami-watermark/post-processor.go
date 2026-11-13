@@ -8,18 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 
+	"github.com/bdwyertech/packer-plugin-aws/helpers"
 	"github.com/hashicorp/hcl/v2/hcldec"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
-	"github.com/hashicorp/packer-plugin-amazon/builder/chroot"
 	awscommon "github.com/hashicorp/packer-plugin-amazon/builder/common"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebs"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebssurrogate"
-	"github.com/hashicorp/packer-plugin-amazon/builder/ebsvolume"
-	"github.com/hashicorp/packer-plugin-amazon/builder/instance"
 
 	"github.com/hashicorp/packer-plugin-sdk/common"
 	"github.com/hashicorp/packer-plugin-sdk/packer"
@@ -45,13 +42,29 @@ type Config struct {
 	ctx interpolate.Context
 }
 
+// stsAPI is the subset of the STS client used by this post-processor.
+type stsAPI interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+// watermarkEC2API is the subset of the EC2 client used by this post-processor.
+type watermarkEC2API interface {
+	AttachImageWatermark(ctx context.Context, params *ec2.AttachImageWatermarkInput, optFns ...func(*ec2.Options)) (*ec2.AttachImageWatermarkOutput, error)
+}
+
+var _ stsAPI = (*sts.Client)(nil)
+var _ watermarkEC2API = (*ec2.Client)(nil)
+
 // PostProcessor implements Packer's PostProcessor interface.
 type PostProcessor struct {
-	config Config
+	config    Config
+	stsClient func(aws.Config) stsAPI          // nil → sts.NewFromConfig
+	ec2Client func(aws.Config) watermarkEC2API // nil → ec2.NewFromConfig
 }
 
 var _ packer.PostProcessor = new(PostProcessor)
 
+// ConfigSpec returns the HCL object spec for the ami-watermark post-processor configuration.
 func (p *PostProcessor) ConfigSpec() hcldec.ObjectSpec {
 	return p.config.FlatMapstructure().HCL2Spec()
 }
@@ -97,6 +110,74 @@ func (p *PostProcessor) Configure(raws ...any) error {
 	return nil
 }
 
+// PostProcess attaches watermarks to AMIs in the artifact.
+func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
+	// Builder compatibility check
+	if !helpers.IsAMIBuilder(artifact.BuilderId()) {
+		return artifact, true, false, fmt.Errorf(
+			"unexpected artifact type: %s\nCan only attach watermarks from Amazon builders (ebs, ebssurrogate, ebsvolume, chroot, instance)",
+			artifact.BuilderId(),
+		)
+	}
+
+	// Get AWS base config
+	awsCfg, err := p.config.AccessConfig.GetAWSConfig(ctx)
+	if err != nil {
+		return artifact, true, false, err
+	}
+
+	// Parse AMIs from artifact
+	if artifact.Id() == "" {
+		return artifact, false, false, nil
+	}
+	amis, err := helpers.ParseArtifactID(artifact.Id())
+	if err != nil {
+		return artifact, true, false, err
+	}
+
+	// Attach watermarks
+	for _, ref := range amis {
+		cfg := helpers.RegionalConfig(awsCfg, ref.Region)
+
+		var client watermarkEC2API = ec2.NewFromConfig(cfg)
+		if p.ec2Client != nil {
+			client = p.ec2Client(cfg)
+		}
+
+		var stsSvc stsAPI = sts.NewFromConfig(cfg)
+		if p.stsClient != nil {
+			stsSvc = p.stsClient(cfg)
+		}
+
+		whoami, err := stsSvc.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return artifact, true, false, fmt.Errorf("GetCallerIdentity: %w", err)
+		}
+		ui.Say(*whoami.Arn)
+
+		id := ref.ID
+		for _, watermarkName := range p.config.WatermarkNames {
+			ui.Sayf("Attaching watermark %q to %s in %s", watermarkName, ref.ID, ref.Region)
+			resp, err := client.AttachImageWatermark(ctx, &ec2.AttachImageWatermarkInput{
+				ImageId:       &id,
+				WatermarkName: &watermarkName,
+			})
+			if err != nil {
+				ui.Error(err.Error())
+				return artifact, true, false, fmt.Errorf(
+					"error attaching watermark %q to AMI %s in %s: %w",
+					watermarkName, ref.ID, ref.Region, err,
+				)
+			}
+
+			ui.Sayf("Watermark attached: key=%s", *resp.WatermarkKey)
+		}
+	}
+
+	// Pass through original artifact
+	return artifact, false, false, nil
+}
+
 // watermarkNameRegex defines the allowed characters for a watermark name.
 var watermarkNameRegex = regexp.MustCompile(`^[a-zA-Z0-9()\[\] .\/\-'@_]+$`)
 
@@ -115,76 +196,4 @@ func validateWatermarkName(name string) error {
 		)
 	}
 	return nil
-}
-
-// PostProcess attaches watermarks to AMIs in the artifact.
-func (p *PostProcessor) PostProcess(ctx context.Context, ui packer.Ui, artifact packer.Artifact) (packer.Artifact, bool, bool, error) {
-	// Builder compatibility check
-	switch artifact.BuilderId() {
-	case ebs.BuilderId,
-		ebssurrogate.BuilderId,
-		ebsvolume.BuilderId,
-		chroot.BuilderId,
-		instance.BuilderId:
-		// supported
-	default:
-		return artifact, true, false, fmt.Errorf(
-			"unexpected artifact type: %s\nCan only attach watermarks from Amazon builders (ebs, ebssurrogate, ebsvolume, chroot, instance)",
-			artifact.BuilderId(),
-		)
-	}
-
-	// Get AWS base config
-	awsCfg, err := p.config.AccessConfig.GetAWSConfig(ctx)
-	if err != nil {
-		return artifact, true, false, err
-	}
-
-	// Parse AMIs from artifact
-	amis := amisFromArtifactID(artifact.Id())
-
-	// Attach watermarks
-	for _, ami := range amis {
-		cfg := awsCfg.Copy()
-		cfg.Region = ami.region
-		client := ec2.NewFromConfig(cfg)
-
-		for _, watermarkName := range p.config.WatermarkNames {
-			ui.Sayf("Attaching watermark %q to %s in %s", watermarkName, ami.id, ami.region)
-			resp, err := client.AttachImageWatermark(ctx, &ec2.AttachImageWatermarkInput{
-				ImageId:       &ami.id,
-				WatermarkName: &watermarkName,
-			})
-			if err != nil {
-				ui.Error(err.Error())
-				return artifact, true, false, fmt.Errorf(
-					"error attaching watermark %q to AMI %s in %s: %w",
-					watermarkName, ami.id, ami.region, err,
-				)
-			}
-
-			ui.Sayf("Watermark attached: key=%s", *resp.WatermarkKey)
-		}
-	}
-
-	// Pass through original artifact
-	return artifact, false, false, nil
-}
-
-// ami encapsulates simplistic details about an AMI.
-type ami struct {
-	id, region string
-}
-
-// amisFromArtifactID returns an AMI slice from a Packer artifact id.
-func amisFromArtifactID(artifactID string) []*ami {
-	if artifactID == "" {
-		return nil
-	}
-	var amis []*ami
-	for amiStr := range strings.SplitSeq(artifactID, ",") {
-		pair := strings.SplitN(amiStr, ":", 2)
-		amis = append(amis, &ami{region: pair[0], id: pair[1]})
-	}
-	return amis
 }
