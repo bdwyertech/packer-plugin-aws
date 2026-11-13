@@ -1,3 +1,7 @@
+// TODO: This acceptance test fixture uses hardcoded placeholder IDs
+// (vpc-12345678) and tags that do not match any real security group.
+// To make this pass, either replace them with real resource IDs/tags or use a
+// dynamic lookup (e.g. the amazon-ami datasource pattern in ami-tag/test-fixtures/basic.pkr.hcl).
 packer {
   required_plugins {
     aws = {

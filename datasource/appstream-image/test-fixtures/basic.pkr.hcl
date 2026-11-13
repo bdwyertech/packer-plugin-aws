@@ -1,3 +1,7 @@
+// TODO: This acceptance test fixture references a specific AppStream image
+// builder ("packer-appstream-11-12-25") that is ephemeral and likely no longer
+// exists. To make this pass, create a matching builder in the target account
+// or parameterize the name via a variable/env var.
 packer {
   required_plugins {
     aws = {
